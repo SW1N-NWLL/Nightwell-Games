@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+
+# OAuth credentials and private signing keys
+client_secret*.json
+*client_secret*.json
+*.p8
+*.pem
+*.key
+secrets/
+private/
+
+node_modules/

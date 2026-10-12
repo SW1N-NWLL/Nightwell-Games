@@ -11,7 +11,7 @@ const content = document.querySelector("#content");
 const modal = document.querySelector("#auth-modal");
 let page = "store", category = "Все приложения", query = "", toastTimer;
 let library = JSON.parse(localStorage.getItem("orbit-library") || "null") || INITIAL_LIBRARY;
-let user = JSON.parse(localStorage.getItem("orbit-user") || "null");
+let user = null;
 
 function saveLibrary() { localStorage.setItem("orbit-library", JSON.stringify(library)); document.querySelector("#library-count").textContent = library.length; }
 function icon(app) { return `<span class="app-icon ${app.iconClass}">${app.icon}</span>`; }
@@ -42,15 +42,11 @@ function bindContent() {
   content.querySelectorAll("[data-action]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.id, app = APPS.find(a => a.id === id); if (b.dataset.action === "install") { if (!library.includes(id)) library.push(id); saveLibrary(); showToast(`${app.name} добавлено в библиотеку`); } else if (b.dataset.action === "remove") { library = library.filter(x => x !== id); saveLibrary(); showToast(`${app.name} удалено из библиотеки`); } else { window.open(app.url, "_blank", "noopener,noreferrer"); } page === "store" ? renderStore() : renderLibrary(); }));
   const search = content.querySelector("#search-input"); if (search) search.addEventListener("input", e => { query = e.target.value; const pos = e.target.selectionStart; renderStore(); const next = content.querySelector("#search-input"); next.focus(); next.setSelectionRange(pos, pos); });
 }
-function openAuth() { modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
+function openAuth() { document.querySelector("#auth-title").textContent = user ? "Вы вошли в Orbit" : "Ваше пространство"; document.querySelector(".auth-copy").textContent = user ? `Аккаунт: ${user.email || user.name}` : "Войдите, чтобы синхронизировать библиотеку на всех устройствах."; document.querySelectorAll(".social-button").forEach(b => b.hidden = Boolean(user)); document.querySelector("#auth-note").textContent = user ? "Ваш аккаунт подключён." : "Безопасный вход через ваш аккаунт. Пароль Orbit не нужен."; document.querySelector("#logout-button").hidden = !user; modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
 function closeAuth() { modal.classList.remove("open"); modal.setAttribute("aria-hidden", "true"); }
 function beginOAuth(provider) {
-  const cfg = window.ORBIT_CONFIG?.[provider];
-  if (!cfg?.clientId) { document.querySelector("#auth-note").textContent = `Для входа через ${provider === "google" ? "Google" : "Apple"} укажите clientId и адрес callback в config.js. Секрет храните только на сервере.`; return; }
-  const state = crypto.randomUUID(); sessionStorage.setItem("orbit-oauth-state", state); sessionStorage.setItem("orbit-oauth-provider", provider);
-  const params = new URLSearchParams({ client_id: cfg.clientId, redirect_uri: cfg.redirectUri, response_type: "code", scope: provider === "google" ? "openid email profile" : "name email", state });
-  const url = provider === "google" ? `https://accounts.google.com/o/oauth2/v2/auth?${params}` : `https://appleid.apple.com/auth/authorize?${params}&response_mode=form_post`;
-  location.assign(url);
+  if (provider === "google") { location.assign("/auth/google"); return; }
+  if (provider === "discord") { location.assign("/auth/discord"); return; }
 }
 document.querySelectorAll(".nav-item").forEach(b => b.addEventListener("click", () => setPage(b.dataset.page)));
 document.querySelectorAll(".category-item").forEach(b => b.addEventListener("click", () => { category = b.dataset.category; document.querySelectorAll(".category-item").forEach(x => x.classList.toggle("selected", x === b)); setPage("store"); document.querySelector("#catalog")?.scrollIntoView({behavior:"smooth"}); }));
@@ -59,6 +55,7 @@ document.querySelector("#modal-close").addEventListener("click", closeAuth);
 modal.addEventListener("click", e => { if (e.target === modal) closeAuth(); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") closeAuth(); });
 document.querySelector("#google-login").addEventListener("click", () => beginOAuth("google"));
-document.querySelector("#apple-login").addEventListener("click", () => beginOAuth("apple"));
-if (user) { document.querySelector("#profile-name").textContent = user.name || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || "М").charAt(0).toUpperCase(); }
+document.querySelector("#discord-login").addEventListener("click", () => beginOAuth("discord"));
+document.querySelector("#logout-button").addEventListener("click", () => location.assign("/auth/logout"));
+fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); } }).catch(() => {});
 saveLibrary(); renderStore();
