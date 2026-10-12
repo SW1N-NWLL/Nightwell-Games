@@ -19,14 +19,99 @@ const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || `http://localhost:${PORT}/auth/callback/discord`;
 const SESSION_SECRET = process.env.SESSION_SECRET;
+const DATABASE_URL = process.env.DATABASE_URL;
+const DATABASE_SSL = process.env.DATABASE_SSL === "true";
+const DATABASE_CA_PATH = process.env.DATABASE_CA_PATH;
+const DATABASE_CONFIGURED = Boolean(DATABASE_URL);
 const ROOT = __dirname;
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml" };
+let dbPool = null;
+let dbInitializationError = null;
+let dbReady = Promise.resolve();
+if (DATABASE_CONFIGURED) {
+  dbReady = (async () => {
+    const mysql = require("mysql2/promise");
+    const databaseUrl = new URL(DATABASE_URL);
+    if (databaseUrl.protocol !== "mysql:") throw new Error("DATABASE_URL must use the mysql:// scheme.");
+    if (DATABASE_SSL && !DATABASE_CA_PATH) throw new Error("DATABASE_CA_PATH is required when DATABASE_SSL=true.");
+    dbPool = mysql.createPool({
+      host: databaseUrl.hostname,
+      port: Number(databaseUrl.port || 3306),
+      user: decodeURIComponent(databaseUrl.username),
+      password: decodeURIComponent(databaseUrl.password),
+      database: decodeURIComponent(databaseUrl.pathname.slice(1)),
+      ssl: DATABASE_SSL ? { ca: fs.readFileSync(DATABASE_CA_PATH, "utf8"), rejectUnauthorized: true } : undefined,
+      waitForConnections: true,
+      connectionLimit: 5,
+      connectTimeout: 10000,
+      charset: "utf8mb4",
+    });
+    dbPool.on("error", error => console.error("Account database connection error:", error.message));
+    await dbPool.execute(`CREATE TABLE IF NOT EXISTS orbit_users (
+      id VARCHAR(64) PRIMARY KEY,
+      email VARCHAR(254) NOT NULL UNIQUE,
+      name VARCHAR(60) NOT NULL,
+      password_salt VARCHAR(64) NOT NULL,
+      password_hash VARCHAR(128) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  })().catch(error => {
+    dbInitializationError = error;
+    console.error("Could not initialize account database:", error.message);
+  });
+}
 const desktopOAuthStates = new Map();
 const desktopTickets = new Map();
+const authRateLimits = new Map();
+const PASSWORD_HASH_BYTES = 64;
+const DUMMY_PASSWORD_SALT = "orbit-login-dummy-salt";
+const DUMMY_PASSWORD_HASH = "00".repeat(PASSWORD_HASH_BYTES);
 function pruneDesktopAuth() {
   const now = Date.now();
   for (const [state, expires] of desktopOAuthStates) if (expires <= now) desktopOAuthStates.delete(state);
   for (const [ticket, entry] of desktopTickets) if (entry.expires <= now) desktopTickets.delete(ticket);
+}
+
+function passwordHash(password, salt) {
+  return new Promise((resolve, reject) => crypto.scrypt(password, salt, PASSWORD_HASH_BYTES, { maxmem: 64 * 1024 * 1024 }, (error, key) => error ? reject(error) : resolve(key.toString("hex"))));
+}
+function json(res, status, data, headers = {}) {
+  return send(res, status, JSON.stringify(data), { "Content-Type": "application/json; charset=utf-8", ...headers });
+}
+function readJson(req) {
+  return new Promise((resolve, reject) => {
+    let body = "", oversized = false;
+    req.on("data", chunk => {
+      if (oversized) return;
+      body += chunk;
+      if (Buffer.byteLength(body) > 12 * 1024) { oversized = true; body = ""; }
+    });
+    req.on("end", () => {
+      if (oversized) return reject(Object.assign(new Error("Request too large"), { status: 413 }));
+      try { resolve(JSON.parse(body || "{}")); }
+      catch { reject(Object.assign(new Error("Invalid JSON"), { status: 400 })); }
+    });
+    req.on("error", reject);
+  });
+}
+function sameOrigin(req, secure) {
+  try {
+    const origin = new URL(req.headers.origin);
+    return origin.host.toLowerCase() === String(req.headers.host || "").toLowerCase() && origin.protocol === (secure ? "https:" : "http:");
+  } catch { return false; }
+}
+function allowAuthAttempt(req, key, limit) {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",").pop().trim();
+  const ip = forwarded || req.socket.remoteAddress || "unknown";
+  const now = Date.now(), id = `${key}:${ip}`, entry = authRateLimits.get(id);
+  if (!entry || entry.reset < now) { authRateLimits.set(id, { count: 1, reset: now + 15 * 60 * 1000 }); return true; }
+  if (entry.count >= limit) return false;
+  entry.count++;
+  if (authRateLimits.size > 5000) for (const [k, v] of authRateLimits) if (v.reset < now) authRateLimits.delete(k);
+  return true;
+}
+function sessionHeaders(user, secure) {
+  return { "Set-Cookie": cookie("orbit_session", signed({ user, exp: Date.now() + 7 * 24 * 60 * 60 * 1000 }), 7 * 24 * 60 * 60, secure) };
 }
 
 function cookieMap(req) { return Object.fromEntries((req.headers.cookie || "").split(";").map(x => x.trim()).filter(Boolean).map(x => { const i=x.indexOf("="); return [x.slice(0,i), decodeURIComponent(x.slice(i+1))]; })); }
@@ -40,6 +125,55 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   pruneDesktopAuth();
   const secure = req.headers["x-forwarded-proto"] === "https" || url.protocol === "https:";
+  if ((url.pathname === "/auth/register" || url.pathname === "/auth/login") && req.method === "POST") {
+    if (!sameOrigin(req, secure)) return json(res, 403, { error: "Запрос отклонён. Обновите страницу и попробуйте снова." });
+    if (!DATABASE_CONFIGURED) return json(res, 503, { error: "Регистрация пока не настроена: подключите MySQL-совместимую базу данных." });
+    const action = url.pathname === "/auth/register" ? "register" : "login";
+    if (!allowAuthAttempt(req, action, action === "register" ? 5 : 20))
+      return json(res, 429, { error: "Слишком много попыток. Попробуйте снова через 15 минут." });
+    let input;
+    try { input = await readJson(req); }
+    catch (error) { return json(res, error.status || 400, { error: error.status === 413 ? "Слишком большой запрос." : "Проверьте введённые данные." }); }
+
+    const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
+    const password = typeof input.password === "string" ? input.password : "";
+    const name = typeof input.name === "string" ? input.name.trim() : "";
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return json(res, 400, { error: "Введите корректный email." });
+    if (password.length < 10 || password.length > 128)
+      return json(res, 400, { error: "Пароль должен содержать от 10 до 128 символов." });
+    if (action === "register" && (!name || name.length > 60))
+      return json(res, 400, { error: "Имя должно содержать от 1 до 60 символов." });
+
+    try {
+      await dbReady;
+      if (!dbPool) throw dbInitializationError || new Error("Account database is unavailable.");
+      if (action === "register") {
+        const salt = crypto.randomBytes(16).toString("hex");
+        const hash = await passwordHash(password, salt);
+        const id = crypto.randomBytes(16).toString("hex");
+        await dbPool.execute(
+          "INSERT INTO orbit_users (id, email, name, password_salt, password_hash) VALUES (?, ?, ?, ?, ?)",
+          [id, email, name, salt, hash]
+        );
+        const user = { id: `local:${id}`, name, email, picture: "" };
+        return json(res, 201, { user }, sessionHeaders(user, secure));
+      }
+
+      const [accounts] = await dbPool.execute("SELECT id, email, name, password_salt, password_hash FROM orbit_users WHERE email = ? LIMIT 1", [email]);
+      const account = accounts[0];
+      const actualHash = await passwordHash(password, account ? account.password_salt : DUMMY_PASSWORD_SALT);
+      const expectedHash = Buffer.from(account ? account.password_hash : DUMMY_PASSWORD_HASH, "hex");
+      const matches = expectedHash.length === PASSWORD_HASH_BYTES && crypto.timingSafeEqual(Buffer.from(actualHash, "hex"), expectedHash);
+      if (!account || !matches) return json(res, 401, { error: "Неверный email или пароль." });
+      const user = { id: `local:${account.id}`, name: account.name, email: account.email, picture: "" };
+      return json(res, 200, { user }, sessionHeaders(user, secure));
+    } catch (error) {
+      if (error.code === "ER_DUP_ENTRY") return json(res, 409, { error: "Аккаунт с таким email уже существует. Войдите в него." });
+      console.error("Email authentication failed:", error.message);
+      return json(res, 503, { error: "Не удалось связаться с базой аккаунтов. Проверьте адрес и настройки MySQL." });
+    }
+  }
   if (url.pathname === "/auth/google") {
     if (!CLIENT_ID || !SESSION_SECRET) return send(res, 500, "Set GOOGLE_CLIENT_ID and SESSION_SECRET before starting Orbit.");
     const state = crypto.randomBytes(32).toString("base64url");
@@ -121,3 +255,9 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => console.log(`Orbit running at http://localhost:${PORT}`));
+async function shutdown() {
+  server.close();
+  await dbPool?.end().catch(() => {});
+}
+process.once("SIGINT", shutdown);
+process.once("SIGTERM", shutdown);
