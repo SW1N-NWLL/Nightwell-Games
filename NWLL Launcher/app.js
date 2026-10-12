@@ -101,10 +101,33 @@ const downloadsEmpty = document.querySelector("#downloads-empty");
 const downloadsList = document.querySelector("#downloads-list");
 let launcherUpdate = null;
 const runningInOrbitApp = Boolean(window.chrome?.webview);
+let observedLauncherManifestVersion = null;
+async function pollPublishedLauncherVersion() {
+  if (!runningInOrbitApp || !navigator.onLine) return;
+  try {
+    const response = await fetch(`/updates/latest.json?watch=${Date.now()}`, { cache: "no-store" });
+    if (!response.ok) return;
+    const manifest = await response.json();
+    if (typeof manifest.version !== "string") return;
+    if (observedLauncherManifestVersion === null) {
+      observedLauncherManifestVersion = manifest.version;
+      return;
+    }
+    if (manifest.version !== observedLauncherManifestVersion) {
+      observedLauncherManifestVersion = manifest.version;
+      window.chrome.webview.postMessage(JSON.stringify({ type: "check-updates" }));
+    }
+  } catch {}
+}
+if (runningInOrbitApp) {
+  pollPublishedLauncherVersion();
+  setInterval(pollPublishedLauncherVersion, 15000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pollPublishedLauncherVersion(); });
+}
 if (!runningInOrbitApp) {
   downloadsEmpty.hidden = true;
   downloadsList.hidden = false;
-  downloadsList.innerHTML = `<article class="download-item" id="launcher-download-item"><div class="download-item-head"><div><strong>Orbit Launcher для Windows</strong><p>Установщик версии 1.0.13</p></div><span class="download-item-state download-item-current">EXE</span></div><a class="download-item-action" href="/OrbitLauncherSetup.exe" download="OrbitLauncherSetup.exe">Скачать лаунчер</a></article>`;
+  downloadsList.innerHTML = `<article class="download-item" id="launcher-download-item"><div class="download-item-head"><div><strong>Orbit Launcher для Windows</strong><p>Установщик версии 1.0.14</p></div><span class="download-item-state download-item-current">EXE</span></div><a class="download-item-action" href="/OrbitLauncherSetup.exe" download="OrbitLauncherSetup.exe">Скачать лаунчер</a></article>`;
 }
 function renderLauncherUpdate(item) {
   launcherUpdate = item;

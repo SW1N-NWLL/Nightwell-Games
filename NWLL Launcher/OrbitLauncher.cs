@@ -18,7 +18,7 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class OrbitLauncher
 {
     private const string Url = "https://launcher.nightwell.fun";
-    private const string AppVersion = "1.0.13";
+    private const string AppVersion = "1.0.14";
     private const string UpdateManifestUrl = "https://launcher.nightwell.fun/updates/latest.json";
     private const string MutexName = "Local\\OrbitLauncherDesktopApp";
     private const string PipeName = "OrbitLauncherDesktopAuth";
@@ -109,6 +109,55 @@ internal static class OrbitLauncher
                 "Orbit Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
             try { Process.Start(new ProcessStartInfo(targetPath) { UseShellExecute = true }); } catch { }
         }
+    }
+
+    private static void StartExternalUpdateApplier(string stagedPath, int originalProcessId)
+    {
+        string targetPath = Application.ExecutablePath;
+        string scriptPath = Path.Combine(Path.GetDirectoryName(stagedPath), "ApplyOrbitUpdate-" + originalProcessId + ".ps1");
+        string target64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(targetPath));
+        string staged64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(stagedPath));
+        string script = @"
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+$target = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + target64 + @"'))
+$staged = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + staged64 + @"'))
+$oldProcessId = " + originalProcessId + @"
+$backup = $target + '.update-backup'
+$replacement = $target + '.new'
+try {
+  Wait-Process -Id $oldProcessId -Timeout 60 -ErrorAction SilentlyContinue
+  if (Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) { throw 'Лаунчер не закрылся за 60 секунд.' }
+  Copy-Item -LiteralPath $staged -Destination $replacement -Force
+  Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
+  Move-Item -LiteralPath $target -Destination $backup -Force
+  try {
+    Move-Item -LiteralPath $replacement -Destination $target -Force
+    Start-Process -FilePath $target
+    Start-Sleep -Seconds 3
+    if (-not (Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($target)) -ErrorAction SilentlyContinue)) { throw 'Новая версия лаунчера не запустилась.' }
+    Remove-Item -LiteralPath $backup -Force
+    Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue
+  } catch {
+    Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $target -Force }
+    throw
+  }
+} catch {
+  if ((-not (Test-Path -LiteralPath $target)) -and (Test-Path -LiteralPath $backup)) { Move-Item -LiteralPath $backup -Destination $target -Force }
+  Remove-Item -LiteralPath $replacement -Force -ErrorAction SilentlyContinue
+  [System.Windows.Forms.MessageBox]::Show('Не удалось установить обновление. Текущая версия сохранена.' + [Environment]::NewLine + [Environment]::NewLine + $_.Exception.Message, 'Orbit Launcher', 'OK', 'Error') | Out-Null
+  if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target }
+} finally {
+  Remove-Item -LiteralPath $script:MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
+}
+";
+        File.WriteAllText(scriptPath, script, new System.Text.UTF8Encoding(false));
+        ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + scriptPath + "\"");
+        startInfo.UseShellExecute = false;
+        startInfo.CreateNoWindow = true;
+        startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+        if (Process.Start(startInfo) == null) throw new InvalidOperationException("Не удалось запустить службу установки обновления.");
     }
 
     private static void RegisterProtocol()
@@ -263,8 +312,7 @@ internal static class OrbitLauncher
                 File.Move(partial, staged);
                 stagedUpdatePath = staged;
                 PostUpdateStatus("installing", "Устанавливаем Orbit Launcher " + version, "Лаунчер перезапустится автоматически.", 100, version);
-                string arguments = "--apply-update \"" + staged + "\" " + Process.GetCurrentProcess().Id;
-                Process.Start(new ProcessStartInfo(Application.ExecutablePath, arguments) { UseShellExecute = true });
+                StartExternalUpdateApplier(staged, Process.GetCurrentProcess().Id);
                 Close();
             }
             catch (Exception ex)
