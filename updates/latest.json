@@ -1,6 +1,6 @@
 {
-  "version": "1.0.3",
+  "version": "1.0.4",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "DCF2F30129F8E34E23F92211EE45493543EB995390AB4A6EEC13014C120C071E",
-  "releaseNotes": "Добавлен полноэкранный экран отсутствия сети и автоматическое восстановление после подключения."
+  "sha256": "C0B2565C15CAF455939747F95C1EEF9749078D51D406A439D5427D6E8538FD3F",
+  "releaseNotes": "Добавлен каталог MSI/EXE установщиков с проверкой SHA-256 и тихой установкой."
 }
