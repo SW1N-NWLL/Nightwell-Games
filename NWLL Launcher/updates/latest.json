@@ -1,6 +1,6 @@
 {
-  "version": "1.0.16",
+  "version": "1.0.17",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "EE51FFEDDD45C10CAF3069DF29CDA125336276F42CA09BD97DA62AFA30E54AE0",
-  "releaseNotes": "Исправлена установка обновлений; добавлена обработка запуска и удаления NWLL Bypass."
+  "sha256": "772376386BAADF0BDCB4AE3C9558300BB56BA62D9316F19C3F97D1A028DD8356",
+  "releaseNotes": "Исправлена подмена файла обновления с запросом прав; исправлен запуск NWLL Bypass."
 }
