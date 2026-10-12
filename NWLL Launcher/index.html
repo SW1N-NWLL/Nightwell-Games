@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0d0e12" />
+    <title>Orbit — лаунчер приложений</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#store" aria-label="Orbit — главная"><span class="brand-mark">◉</span><span>orbit<span class="brand-dot">.</span></span></a>
+        <div class="side-label">ПЛАТФОРМА</div>
+        <nav class="side-nav" aria-label="Основная навигация">
+          <button class="nav-item active" data-page="store"><span class="nav-icon">⌂</span>Магазин</button>
+          <button class="nav-item" data-page="library"><span class="nav-icon">▤</span>Библиотека <span class="nav-count" id="library-count">3</span></button>
+        </nav>
+        <div class="side-label category-label">КАТЕГОРИИ</div>
+        <nav class="side-nav categories" aria-label="Категории магазина">
+          <button class="category-item selected" data-category="Все приложения"><span class="category-dot all-dot"></span>Все приложения</button>
+          <button class="category-item" data-category="Работа"><span class="category-dot work-dot"></span>Работа</button>
+          <button class="category-item" data-category="Дизайн"><span class="category-dot design-dot"></span>Дизайн</button>
+          <button class="category-item" data-category="Разработка"><span class="category-dot dev-dot"></span>Разработка</button>
+          <button class="category-item" data-category="Медиа"><span class="category-dot media-dot"></span>Медиа</button>
+        </nav>
+        <div class="sidebar-bottom"><div class="sync-card"><span class="sync-icon">✦</span><div><strong>Всё под рукой</strong><p>Ваши приложения в одном месте</p></div><span class="sync-arrow">↗</span></div><div class="sidebar-foot"><span class="online-dot"></span> Система работает <span class="version">v 1.0.0</span></div></div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Пространство</span><span class="crumb-sep">/</span><strong id="breadcrumb-current">Магазин</strong></div>
+          <div class="top-actions"><button class="icon-button" aria-label="Уведомления">♧<i></i></button><button class="profile-button" id="profile-button"><span class="avatar" id="avatar">М</span><span class="profile-name" id="profile-name">Мой аккаунт</span><span class="chevron">⌄</span></button></div>
+        </header>
+        <div class="content" id="content"></div>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status"></div>
+    <div class="modal-backdrop" id="auth-modal" aria-hidden="true">
+      <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+        <button class="modal-close" id="modal-close" aria-label="Закрыть">×</button>
+        <div class="auth-brand"><span class="brand-mark">◉</span> orbit<span class="brand-dot">.</span></div>
+        <div class="auth-orbit">✦</div><h2 id="auth-title">Ваше пространство</h2><p class="auth-copy">Войдите, чтобы синхронизировать библиотеку на всех устройствах.</p>
+        <button class="social-button google-button" id="google-login"><span class="google-g">G</span> Продолжить с Google</button>
+        <button class="social-button apple-button" id="apple-login"><span class="apple-logo">●</span> Продолжить с Apple</button>
+        <div class="auth-note" id="auth-note">Безопасный вход через ваш аккаунт. Пароль Orbit не нужен.</div>
+        <div class="auth-legal">Продолжая, вы принимаете <a href="#terms">условия использования</a> и <a href="#privacy">политику конфиденциальности</a>.</div>
+      </section>
+    </div>
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
