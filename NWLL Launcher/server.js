@@ -25,7 +25,6 @@ const DATABASE_CONFIGURED = Boolean(DATABASE_URL);
 const ROOT = __dirname;
 const INSTALLERS_DIR = path.join(ROOT, "installers");
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml" };
-let installerCatalogCache = { expiresAt: 0, items: [] };
 let dbPool = null;
 let dbInitializationError = null;
 let dbReady = Promise.resolve();
@@ -139,7 +138,6 @@ function sha256File(filePath) {
 }
 
 async function getInstallerCatalog() {
-  if (installerCatalogCache.expiresAt > Date.now()) return installerCatalogCache.items;
   let entries;
   try { entries = await fs.promises.readdir(INSTALLERS_DIR, { withFileTypes: true }); }
   catch (error) { if (error.code === "ENOENT") return []; throw error; }
@@ -161,7 +159,7 @@ async function getInstallerCatalog() {
       category: String(settings.category || "Утилиты").slice(0, 40),
       extension,
       size: `${Math.max(1, Math.round(stat.size / 1024 / 1024))} МБ`,
-      downloadUrl: `/installers/${encodeURIComponent(entry.name)}`,
+      downloadUrl: `/installers/${encodeURIComponent(entry.name)}?sha256=${fileHash}`,
       sha256: fileHash,
       silentArgs,
       installId: typeof settings.installId === "string" ? settings.installId.slice(0, 64) : "",
@@ -169,7 +167,6 @@ async function getInstallerCatalog() {
       silentReady: extension === "msi" || Boolean(silentArgs),
     };
   }));
-  installerCatalogCache = { expiresAt: Date.now() + 10000, items: packages };
   return packages;
 }
 
