@@ -63,6 +63,41 @@ function saveLibrary() { localStorage.setItem("orbit-library", JSON.stringify(li
 function icon(app) { return `<span class="app-icon ${app.iconClass}">${app.icon}</span>`; }
 function showToast(message) { const el = document.querySelector("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600); }
 window.addEventListener("orbit-install-status", event => showToast(String(event.detail || "Установка обновлена")));
+const downloadsEmpty = document.querySelector("#downloads-empty");
+const downloadsList = document.querySelector("#downloads-list");
+let launcherUpdate = null;
+function renderLauncherUpdate(item) {
+  launcherUpdate = item;
+  downloadsEmpty.hidden = true;
+  downloadsList.hidden = false;
+  downloadsList.innerHTML = `<article class="download-item" id="launcher-update-item"><div class="download-item-head"><div><strong id="launcher-update-title"></strong><p id="launcher-update-detail"></p></div><span class="download-item-state" id="launcher-update-state"></span></div><div class="download-progress" id="launcher-update-progress" hidden><span></span></div><button class="download-item-action" id="launcher-update-action" type="button" hidden></button></article>`;
+  const row = document.querySelector("#launcher-update-item");
+  document.querySelector("#launcher-update-title").textContent = item.title || "Обновление Orbit Launcher";
+  document.querySelector("#launcher-update-detail").textContent = item.detail || "";
+  const labels = { checking: "Проверка", available: "Доступно", downloading: "Загрузка", verifying: "Проверка файла", installing: "Установка", current: "Готово", error: "Ошибка" };
+  document.querySelector("#launcher-update-state").textContent = labels[item.state] || "";
+  row.dataset.state = item.state || "";
+  const progress = document.querySelector("#launcher-update-progress");
+  if (["downloading", "verifying", "installing"].includes(item.state)) {
+    progress.hidden = false;
+    const bar = progress.firstElementChild;
+    if (Number.isFinite(item.progress)) { bar.style.width = `${Math.max(0, Math.min(100, item.progress))}%`; }
+    else { bar.style.width = "38%"; bar.classList.add("indeterminate"); }
+  }
+  const action = document.querySelector("#launcher-update-action");
+  if (item.state === "available" || item.state === "error") {
+    action.hidden = false;
+    action.textContent = item.state === "available" ? "Скачать и установить" : "Проверить снова";
+    action.addEventListener("click", () => {
+      const bridge = window.chrome?.webview;
+      if (!bridge) { showToast("Обновление можно установить из приложения Orbit Launcher."); return; }
+      action.disabled = true;
+      bridge.postMessage(JSON.stringify({ type: item.state === "available" ? "install-update" : "check-updates" }));
+    });
+  }
+  document.querySelector("#downloads-badge").hidden = item.state !== "available";
+}
+window.addEventListener("orbit-update-status", event => renderLauncherUpdate(event.detail || {}));
 function appCard(app, compact = false) { const owned = library.includes(app.id); const action = app.installer ? "install-package" : owned ? "launch" : "install"; const label = app.installer ? "Установить" : owned ? "Открыть ↗" : "Добавить +"; return `<article class="app-card ${app.installer ? "installer-card" : ""}"><div class="app-card-top">${icon(app)}<span class="rating">${app.installer ? app.extension.toUpperCase() : `★ ${app.rating}`}</span></div><h3>${escapeHtml(app.name)}</h3><p>${escapeHtml(app.description)}</p><div class="app-card-bottom"><span class="app-category">${escapeHtml(app.category)}</span><button class="small-action ${owned ? "installed" : ""}" data-action="${action}" data-id="${app.id}" ${app.installer && !app.silentReady ? "disabled title=\"Для этого EXE нужно настроить параметры тихой установки\"" : ""}>${app.installer && !app.silentReady ? "Настроить" : label}</button></div></article>`; }
 function featureCard(app, big, label) { return `<article class="feature-card ${big ? "large" : ""}"><div class="feature-bg">${app.icon}</div><div class="feature-label">${label}</div><h3>${app.name}</h3><p>${app.description}</p><div class="feature-bottom"><div class="feature-mini">${icon(app)}<div><strong>${app.name}</strong><span>★ ${app.rating} · ${app.category}</span></div></div><button class="small-action ${library.includes(app.id) ? "installed" : ""}" data-action="${library.includes(app.id) ? "launch" : "install"}" data-id="${app.id}">${library.includes(app.id) ? "Открыть ↗" : "Добавить +"}</button></div></article>`; }
 function renderStore() {
