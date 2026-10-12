@@ -153,6 +153,25 @@
 /* Liquid Glass treatment for the mobile navigation dock. */
 @media (max-width: 700px) {
   .sidebar {
+    position: sticky;
+    inset: auto;
+    top: env(safe-area-inset-top);
+    bottom: auto;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    margin: 8px 12px 0;
+    padding: 6px;
+    border-radius: 18px;
+  }
+  .main-area { padding-bottom: 20px; }
+  .catalog-toolbar .filter-chip { display: none; }
+  .content { padding-top: 16px; }
+}
+
+@media (max-width: 700px) {
+  .sidebar {
     overflow: hidden;
     border: 1px solid #ffffff32;
     background: linear-gradient(145deg, #ffffff16, #28253078 38%, #111016a8 100%);
@@ -182,4 +201,22 @@
   }
   .nav-item:not(.active) { color: #e3e0e9c7; }
   .nav-item:not(.active):active { background: #ffffff12; }
+}
+
+/* Keep the primary tabs at the top and remove the text-heavy category strip on phones. */
+@media (max-width: 700px) {
+  .sidebar {
+    position: sticky;
+    inset: auto;
+    top: env(safe-area-inset-top);
+    bottom: auto;
+    width: auto;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    margin: 8px 12px 0;
+  }
+  .main-area { padding-bottom: 20px; }
+  .catalog-toolbar .filter-chip { display: none; }
+  .content { padding-top: 16px; }
 }
