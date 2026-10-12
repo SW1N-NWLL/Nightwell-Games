@@ -57,5 +57,5 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeAuth();
 document.querySelector("#google-login").addEventListener("click", () => beginOAuth("google"));
 document.querySelector("#discord-login").addEventListener("click", () => beginOAuth("discord"));
 document.querySelector("#logout-button").addEventListener("click", () => location.assign("/auth/logout"));
-fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); } }).catch(() => {});
+fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); } if (modal.classList.contains("open")) openAuth(); }).catch(() => {});
 saveLibrary(); renderStore();

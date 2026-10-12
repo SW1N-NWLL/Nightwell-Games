@@ -184,6 +184,9 @@
 .categories,
 .catalog-toolbar .filter-chip { display: none !important; }
 
+/* Keep the signed-in state hidden even though social buttons have display:flex. */
+.social-button[hidden] { display: none !important; }
+
 @media (max-width: 700px) {
   .categories,
   .category-label,
