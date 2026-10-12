@@ -170,6 +170,18 @@
   .content { padding-top: 16px; }
 }
 
+/* Categories are intentionally omitted from the interface on every screen size. */
+.category-label,
+.categories,
+.catalog-toolbar .filter-chip { display: none !important; }
+
+@media (max-width: 700px) {
+  .categories,
+  .category-label,
+  .category-item,
+  .catalog-toolbar .filter-chip { display: none !important; }
+}
+
 @media (max-width: 700px) {
   .sidebar {
     overflow: hidden;
