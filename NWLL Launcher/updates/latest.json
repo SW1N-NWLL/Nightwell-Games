@@ -1,6 +1,6 @@
 {
-  "version": "1.0.9",
+  "version": "1.0.10",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "E3D8D6EDB882A84E1CF3BEBE43F90428376BA15F01B0287EE934235164E9AF25",
-  "releaseNotes": "Добавлена подробная диагностика ошибок установки приложений."
+  "sha256": "C25A88BD5F06EB1312CCE85895853B62854688F43C82F32B1A9750A2724DAE65",
+  "releaseNotes": "Исправлено согласование TLS-протокола для проверки и загрузки обновлений."
 }
