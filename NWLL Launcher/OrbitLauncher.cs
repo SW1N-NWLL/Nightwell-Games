@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Web.Script.Serialization;
@@ -17,11 +18,18 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class OrbitLauncher
 {
     private const string Url = "https://launcher.nightwell.fun";
-    private const string AppVersion = "1.0.4";
+    private const string AppVersion = "1.0.12";
     private const string UpdateManifestUrl = "https://launcher.nightwell.fun/updates/latest.json";
     private const string MutexName = "Local\\OrbitLauncherDesktopApp";
     private const string PipeName = "OrbitLauncherDesktopAuth";
-    private static readonly HttpClient UpdateClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+    private static readonly HttpClient UpdateClient;
+
+    static OrbitLauncher()
+    {
+        // Offer TLS 1.2 and 1.3 explicitly; keep normal certificate validation.
+        ServicePointManager.SecurityProtocol = (SecurityProtocolType)3072 | (SecurityProtocolType)12288;
+        UpdateClient = new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+    }
 
     [STAThread]
     private static void Main(string[] args)
@@ -132,16 +140,16 @@ internal static class OrbitLauncher
     private sealed class LauncherForm : Form
     {
         private readonly WebView2 browser = new WebView2();
-        private readonly Label updateStatus = new Label();
-        private readonly Button updateButton = new Button();
-        private readonly Panel updateBar = new Panel();
         private readonly System.Windows.Forms.Timer reconnectTimer = new System.Windows.Forms.Timer();
         private string initialCallback;
         private bool browserReady;
         private bool showingOfflinePage;
         private bool reconnectCheckInProgress;
+        private bool updateCheckStarted;
         private string stagedUpdatePath;
         private string availableVersion;
+        private Uri pendingUpdateUri;
+        private string pendingUpdateHash;
 
         public LauncherForm(string callback)
         {
@@ -152,35 +160,27 @@ internal static class OrbitLauncher
             MinimumSize = new System.Drawing.Size(800, 560);
             StartPosition = FormStartPosition.CenterScreen;
             browser.Dock = DockStyle.Fill;
-            updateBar.Dock = DockStyle.Top;
-            updateBar.Height = 38;
-            updateBar.Padding = new Padding(12, 3, 8, 3);
-            updateBar.BackColor = System.Drawing.Color.FromArgb(30, 25, 40);
-            updateStatus.Dock = DockStyle.Fill;
-            updateStatus.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
-            updateStatus.ForeColor = System.Drawing.Color.Gainsboro;
-            updateStatus.Text = "Orbit Launcher • версия " + AppVersion;
-            updateButton.Dock = DockStyle.Right;
-            updateButton.Width = 190;
-            updateButton.Text = "Проверить обновления";
-            updateButton.Click += async delegate { await CheckForUpdatesAsync(true); };
-            updateBar.Controls.Add(updateStatus);
-            updateBar.Controls.Add(updateButton);
             reconnectTimer.Interval = 4000;
             reconnectTimer.Tick += async delegate { await TryReconnectAsync(); };
             Controls.Add(browser);
-            Controls.Add(updateBar);
-            updateBar.BringToFront();
-            Shown += async delegate { await InitializeBrowser(); await CheckForUpdatesAsync(false); };
+            Shown += async delegate { await InitializeBrowser(); };
         }
 
-        private async Task CheckForUpdatesAsync(bool showResult)
+        private async Task CheckForUpdatesAsync()
         {
-            updateButton.Enabled = false;
-            updateButton.Text = "Проверяю…";
+            availableVersion = null;
+            pendingUpdateUri = null;
+            pendingUpdateHash = null;
+            PostUpdateStatus("checking", "Проверяем обновления", "Связываемся с сервером обновлений.", null, null);
             try
             {
-                string json = await UpdateClient.GetStringAsync(UpdateManifestUrl);
+                string json;
+                using (HttpResponseMessage manifestResponse = await UpdateClient.GetAsync(UpdateManifestUrl + "?t=" + DateTime.UtcNow.Ticks))
+                {
+                    if (!manifestResponse.IsSuccessStatusCode)
+                        throw new HttpRequestException("Сервер обновлений вернул HTTP " + (int)manifestResponse.StatusCode + " " + manifestResponse.ReasonPhrase + ". Проверьте, что latest.json опубликован по адресу " + UpdateManifestUrl);
+                    json = await manifestResponse.Content.ReadAsStringAsync();
+                }
                 JavaScriptSerializer serializer = new JavaScriptSerializer();
                 var manifest = serializer.Deserialize<Dictionary<string, object>>(json);
                 object versionValue, urlValue, hashValue, notesValue;
@@ -197,9 +197,7 @@ internal static class OrbitLauncher
                 if (latest <= current)
                 {
                     availableVersion = null;
-                    updateStatus.Text = "Orbit Launcher • версия " + AppVersion + " — установлена последняя версия";
-                    updateButton.Text = "Проверить обновления";
-                    if (showResult) MessageBox.Show("У вас установлена последняя версия Orbit Launcher.", "Orbit Launcher", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    PostUpdateStatus("current", "Обновлений нет", "Установлена последняя версия " + AppVersion + ".", 100, AppVersion);
                     return;
                 }
 
@@ -210,26 +208,21 @@ internal static class OrbitLauncher
                     throw new InvalidDataException("Проверьте HTTPS-ссылку и SHA-256 в latest.json.");
 
                 availableVersion = version;
+                pendingUpdateUri = downloadUri;
+                pendingUpdateHash = expectedHash;
                 string notes = manifest.TryGetValue("releaseNotes", out notesValue) ? Convert.ToString(notesValue) : null;
-                updateStatus.Text = "Доступно обновление " + version + (String.IsNullOrWhiteSpace(notes) ? String.Empty : " • " + notes);
-                updateButton.Text = "Обновить до " + version;
-                if (showResult && MessageBox.Show("Доступна версия " + version + ".\n\n" + (notes ?? "") + "\n\nСкачать и установить сейчас?",
-                    "Обновление Orbit Launcher", MessageBoxButtons.YesNo, MessageBoxIcon.Information) == DialogResult.Yes)
-                    await DownloadAndInstallUpdateAsync(downloadUri, version, expectedHash);
+                PostUpdateStatus("available", "Доступно обновление " + version, String.IsNullOrWhiteSpace(notes) ? "Нажмите «Скачать», чтобы установить обновление." : notes, null, version);
             }
             catch (Exception ex)
             {
-                updateStatus.Text = "Не удалось проверить обновления";
-                updateButton.Text = "Повторить проверку";
-                if (showResult) MessageBox.Show("Не удалось проверить обновления.\n\n" + ex.Message, "Orbit Launcher", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                string error = GetExceptionDetails(ex);
+                PostUpdateStatus("error", "Не удалось проверить обновления", error + " Проверьте интернет и доступность " + UpdateManifestUrl, null, null);
             }
-            finally { updateButton.Enabled = true; }
         }
 
         private async Task DownloadAndInstallUpdateAsync(Uri downloadUri, string version, string expectedHash)
         {
-            updateButton.Enabled = false;
-            updateButton.Text = "Скачиваю…";
+            PostUpdateStatus("downloading", "Скачиваем Orbit Launcher " + version, "Подготовка загрузки…", 0, version);
             string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Orbit Launcher", "Updates");
             string staged = Path.Combine(directory, "OrbitLauncher-" + version + ".exe");
             string partial = staged + ".download";
@@ -243,8 +236,22 @@ internal static class OrbitLauncher
                         throw new InvalidDataException("Сервер вернул веб-страницу вместо файла обновления.");
                     using (Stream input = await response.Content.ReadAsStreamAsync())
                     using (FileStream output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
-                        await input.CopyToAsync(output);
+                    {
+                        byte[] buffer = new byte[81920];
+                        long total = 0;
+                        int read;
+                        long? length = response.Content.Headers.ContentLength;
+                        while ((read = await input.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                        {
+                            await output.WriteAsync(buffer, 0, read);
+                            total += read;
+                            int? progress = length.HasValue && length.Value > 0 ? (int?)(total * 100 / length.Value) : null;
+                            PostUpdateStatus("downloading", "Скачиваем Orbit Launcher " + version,
+                                length.HasValue ? FormatBytes(total) + " из " + FormatBytes(length.Value) : FormatBytes(total), progress, version);
+                        }
+                    }
                 }
+                PostUpdateStatus("verifying", "Проверяем файл обновления", "Сверяем SHA-256.", 100, version);
                 using (SHA256 sha = SHA256.Create())
                 using (FileStream file = File.OpenRead(partial))
                 {
@@ -255,6 +262,7 @@ internal static class OrbitLauncher
                 File.Delete(staged);
                 File.Move(partial, staged);
                 stagedUpdatePath = staged;
+                PostUpdateStatus("installing", "Устанавливаем Orbit Launcher " + version, "Лаунчер перезапустится автоматически.", 100, version);
                 string arguments = "--apply-update \"" + staged + "\" " + Process.GetCurrentProcess().Id;
                 Process.Start(new ProcessStartInfo(Application.ExecutablePath, arguments) { UseShellExecute = true });
                 Close();
@@ -262,11 +270,39 @@ internal static class OrbitLauncher
             catch (Exception ex)
             {
                 try { if (File.Exists(partial)) File.Delete(partial); } catch { }
-                updateStatus.Text = "Не удалось скачать обновление";
-                updateButton.Text = "Повторить";
-                updateButton.Enabled = true;
-                MessageBox.Show("Не удалось скачать обновление.\n\n" + ex.Message, "Orbit Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                PostUpdateStatus("error", "Не удалось установить обновление", GetExceptionDetails(ex), null, version);
             }
+        }
+
+        private static string GetExceptionDetails(Exception ex)
+        {
+            StringBuilder details = new StringBuilder();
+            for (Exception current = ex; current != null; current = current.InnerException)
+            {
+                if (details.Length > 0) details.Append(" → ");
+                details.Append(current.Message);
+            }
+            return details.ToString();
+        }
+
+        private static string FormatBytes(long bytes)
+        {
+            if (bytes >= 1048576) return (bytes / 1048576.0).ToString("0.0") + " МБ";
+            if (bytes >= 1024) return (bytes / 1024.0).ToString("0") + " КБ";
+            return bytes + " Б";
+        }
+
+        private void PostUpdateStatus(string state, string title, string detail, int? progress, string version)
+        {
+            if (!browserReady || browser.CoreWebView2 == null || IsDisposed) return;
+            Dictionary<string, object> payload = new Dictionary<string, object>();
+            payload["state"] = state;
+            payload["title"] = title;
+            payload["detail"] = detail;
+            payload["progress"] = progress;
+            payload["version"] = version;
+            string json = new JavaScriptSerializer().Serialize(payload);
+            browser.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('orbit-update-status',{detail:" + json + "}));");
         }
 
         private static bool IsHex(string value)
@@ -296,36 +332,50 @@ internal static class OrbitLauncher
             }
         }
 
-        private void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
+        private async void OnNavigationCompleted(object sender, CoreWebView2NavigationCompletedEventArgs e)
         {
             if (showingOfflinePage) return;
             if (!e.IsSuccess)
             {
                 showingOfflinePage = true;
-                updateBar.Visible = false;
                 browser.CoreWebView2.NavigateToString(OfflineHtml);
                 reconnectTimer.Start();
             }
-            else initialCallback = null;
+            else
+            {
+                initialCallback = null;
+                if (!updateCheckStarted)
+                {
+                    updateCheckStarted = true;
+                    await CheckForUpdatesAsync();
+                }
+            }
         }
 
-        private void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
+        private async void OnWebMessageReceived(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
             Uri source;
             if (!Uri.TryCreate(e.Source, UriKind.Absolute, out source) ||
                 source.Scheme != Uri.UriSchemeHttps || !source.Host.Equals("launcher.nightwell.fun", StringComparison.OrdinalIgnoreCase)) return;
             string message;
             try { message = e.TryGetWebMessageAsString(); } catch { return; }
-            if (message == "offline") updateBar.Visible = false;
-            else if (message == "online") updateBar.Visible = true;
-            else
+            if (message != "offline" && message != "online")
             {
                 try
                 {
                     Dictionary<string, object> payload = new JavaScriptSerializer().Deserialize<Dictionary<string, object>>(message);
                     object type;
-                    if (payload != null && payload.TryGetValue("type", out type) && Convert.ToString(type) == "install-package")
-                        InstallPackageAsync(payload);
+                    if (payload != null && payload.TryGetValue("type", out type))
+                    {
+                        string action = Convert.ToString(type);
+                        if (action == "install-package") InstallPackageAsync(payload);
+                        else if (action == "get-package-state") PostPackageState(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
+                        else if (action == "open-install-folder") OpenPackageFolder(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
+                        else if (action == "uninstall-package") UninstallPackageAsync(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
+                        else if (action == "check-updates") await CheckForUpdatesAsync();
+                        else if (action == "install-update" && pendingUpdateUri != null && !String.IsNullOrEmpty(availableVersion))
+                            await DownloadAndInstallUpdateAsync(pendingUpdateUri, availableVersion, pendingUpdateHash);
+                    }
                 }
                 catch { }
             }
@@ -402,10 +452,20 @@ internal static class OrbitLauncher
                         throw new InvalidOperationException("Установщик завершился с кодом " + process.ExitCode + ". Проверьте, что параметры тихой установки указаны правильно.");
                 }
                 PostInstallerStatus("Установка завершена: " + fileName);
+                object installIdValue;
+                if (payload.TryGetValue("installId", out installIdValue)) PostPackageState(Convert.ToString(installIdValue));
             }
             catch (Exception ex)
             {
-                PostInstallerStatus("Не удалось установить приложение: " + ex.Message);
+                string details = GetExceptionDetails(ex);
+                try
+                {
+                    string logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Orbit Launcher", "Installers");
+                    Directory.CreateDirectory(logDirectory);
+                    File.AppendAllText(Path.Combine(logDirectory, "installer.log"), "[" + DateTime.Now.ToString("O") + "] " + details + Environment.NewLine);
+                }
+                catch { }
+                PostInstallerStatus("Не удалось установить приложение: " + details);
             }
             finally
             {
@@ -418,6 +478,62 @@ internal static class OrbitLauncher
             if (!browserReady || browser.CoreWebView2 == null || IsDisposed) return;
             string detail = new JavaScriptSerializer().Serialize(message);
             browser.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('orbit-install-status',{detail:" + detail + "}));");
+        }
+
+        private string GetNightwellBypassInstallPath(string installId)
+        {
+            if (!String.Equals(installId, "NightwellBypass", StringComparison.Ordinal)) return null;
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\NightwellBypass", false))
+            {
+                if (key == null) return null;
+                string path = key.GetValue("InstallLocation") as string;
+                if (String.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) return null;
+                string executable = Path.Combine(path, "NightwellBypass.exe");
+                return File.Exists(executable) ? path : null;
+            }
+        }
+
+        private void PostPackageState(string installId)
+        {
+            string installPath = GetNightwellBypassInstallPath(installId);
+            if (!browserReady || browser.CoreWebView2 == null || IsDisposed) return;
+            Dictionary<string, object> state = new Dictionary<string, object>();
+            state["installId"] = installId ?? String.Empty;
+            state["installed"] = installPath != null;
+            state["installPath"] = installPath ?? String.Empty;
+            string detail = new JavaScriptSerializer().Serialize(state);
+            browser.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('orbit-package-state',{detail:" + detail + "}));");
+        }
+
+        private void OpenPackageFolder(string installId)
+        {
+            string installPath = GetNightwellBypassInstallPath(installId);
+            if (installPath == null) { PostInstallerStatus("Папка установки не найдена. Возможно, приложение уже удалено."); PostPackageState(installId); return; }
+            try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + installPath + "\"") { UseShellExecute = true }); }
+            catch (Exception ex) { PostInstallerStatus("Не удалось открыть папку установки: " + GetExceptionDetails(ex)); }
+        }
+
+        private async void UninstallPackageAsync(string installId)
+        {
+            try
+            {
+                string installPath = GetNightwellBypassInstallPath(installId);
+                if (installPath == null) { PostInstallerStatus("Установленное приложение не найдено."); PostPackageState(installId); return; }
+                string script = Path.Combine(installPath, "uninstall.ps1");
+                if (!File.Exists(script)) throw new FileNotFoundException("Не найден штатный деинсталлятор приложения.", script);
+                ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"");
+                startInfo.UseShellExecute = false;
+                startInfo.CreateNoWindow = true;
+                startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+                using (Process process = Process.Start(startInfo))
+                {
+                    if (process == null) throw new InvalidOperationException("Не удалось запустить деинсталлятор.");
+                    await Task.Run(delegate { process.WaitForExit(); });
+                }
+                PostPackageState(installId);
+                PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление отменено или не завершено.");
+            }
+            catch (Exception ex) { PostInstallerStatus("Не удалось удалить приложение: " + GetExceptionDetails(ex)); }
         }
 
         private async Task TryReconnectAsync()
@@ -434,7 +550,6 @@ internal static class OrbitLauncher
 
                 showingOfflinePage = false;
                 reconnectTimer.Stop();
-                updateBar.Visible = true;
                 string callback = initialCallback;
                 initialCallback = null;
                 if (!String.IsNullOrEmpty(callback)) NavigateToExchange(callback);
