@@ -187,6 +187,19 @@
 /* Keep the signed-in state hidden even though social buttons have display:flex. */
 .social-button[hidden] { display: none !important; }
 
+.auth-status-row { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.auth-status-row .auth-note { flex: 1; margin: 16px 0; min-height: 0; }
+.logout-icon-button {
+  width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center;
+  padding: 0; border: 1px solid #ffffff24; border-radius: 13px; cursor: pointer;
+  color: #d2c3f4; background: linear-gradient(145deg, #ffffff14, #ffffff06);
+  box-shadow: inset 0 1px 0 #ffffff20; transition: .18s ease;
+}
+.logout-icon-button:hover { color: #fff; border-color: #a78aff88; background: #9a79ff22; }
+.logout-icon-button:focus-visible { outline: 2px solid #a78aff; outline-offset: 2px; }
+.logout-icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.logout-icon-button[hidden] { display: none !important; }
+
 @media (max-width: 700px) {
   .categories,
   .category-label,

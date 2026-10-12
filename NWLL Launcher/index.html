@@ -47,8 +47,12 @@
         <div class="auth-orbit">✦</div><h2 id="auth-title">Ваше пространство</h2><p class="auth-copy">Войдите, чтобы синхронизировать библиотеку на всех устройствах.</p>
         <button class="social-button google-button" id="google-login"><span class="google-g">G</span> Продолжить с Google</button>
         <button class="social-button discord-button" id="discord-login"><span class="discord-logo">◕</span> Продолжить с Discord</button>
-        <button class="social-button logout-button" id="logout-button" hidden>Выйти из аккаунта</button>
-        <div class="auth-note" id="auth-note">Безопасный вход через ваш аккаунт. Пароль Orbit не нужен.</div>
+        <div class="auth-status-row">
+          <div class="auth-note" id="auth-note">Безопасный вход через ваш аккаунт. Пароль Orbit не нужен.</div>
+          <button class="logout-icon-button" id="logout-button" type="button" aria-label="Выйти из аккаунта" title="Выйти из аккаунта" hidden>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3m9-8h7a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-7" /></svg>
+          </button>
+        </div>
         <div class="auth-legal">Продолжая, вы принимаете <a href="#terms">условия использования</a> и <a href="#privacy">политику конфиденциальности</a>.</div>
       </section>
     </div>
