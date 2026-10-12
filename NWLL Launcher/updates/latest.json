@@ -1,6 +1,6 @@
 {
-  "version": "1.0.12",
+  "version": "1.0.13",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "4B9415C48997284A72B0BCD9DCA56933301CAC14AAD2E0C49144C3BFCF65ED6A",
-  "releaseNotes": "Добавлено управление установленными приложениями и синхронизация библиотеки между сайтом и лаунчером."
+  "sha256": "55DDD013655CD0BD005B83AC51AAD7713F9A7A669821297FEB4F71E9F9AAE10D",
+  "releaseNotes": "Уточнена ошибка удаления NWLL Bypass: лаунчер подсказывает закрыть программу в системном трее."
 }
