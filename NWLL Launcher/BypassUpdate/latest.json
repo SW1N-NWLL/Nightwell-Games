@@ -1,6 +1,6 @@
 {
   "version": "2.0.0",
-  "downloadUrl": "ССЫЛКА_НА_EXE_В_РЕПОЗИТОРИИ",
-  "sha256": "SHA256_ФАЙЛА_EXE",
+  "downloadUrl": "https://launcher.nightwell.fun/installers/NightwellBypass-Setup.exe",
+  "sha256": "3CB836C3394FD4E937A3A41CE2F6B9E35ABD82203E9FB8EA36838909D914AFA7",
   "releaseNotes": "NWLL Bypass 2.0.0"
 }
