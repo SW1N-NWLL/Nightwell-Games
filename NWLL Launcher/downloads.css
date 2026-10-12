@@ -95,7 +95,6 @@
 /* Header actions sit to the right of the account control. */
 .top-actions { gap: 11px; }
 .top-actions .profile-button { order: 0; margin-right: 7px; }
-.top-actions .notification-button { order: 1; width: 34px; height: 38px; }
 .app-icon.icon-installer { color: #c7b2ff; background: linear-gradient(145deg, #35294e, #211d30); }
 .app-card.installer-card { border-color: #393247; }
 .installer-card .small-action:disabled { opacity: .55; cursor: not-allowed; border-color: #393741; }
