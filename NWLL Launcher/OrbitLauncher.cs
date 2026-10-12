@@ -18,7 +18,7 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class OrbitLauncher
 {
     private const string Url = "https://launcher.nightwell.fun";
-    private const string AppVersion = "1.0.14";
+    private const string AppVersion = "1.0.15";
     private const string UpdateManifestUrl = "https://launcher.nightwell.fun/updates/latest.json";
     private const string MutexName = "Local\\OrbitLauncherDesktopApp";
     private const string PipeName = "OrbitLauncherDesktopAuth";
@@ -417,7 +417,8 @@ try {
                     {
                         string action = Convert.ToString(type);
                         if (action == "install-package") InstallPackageAsync(payload);
-                        else if (action == "get-package-state") PostPackageState(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
+                        else if (action == "get-package-state") PostPackageState(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty), Convert.ToString(payload.ContainsKey("launchExecutable") ? payload["launchExecutable"] : String.Empty));
+                        else if (action == "launch-package") LaunchPackage(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty), Convert.ToString(payload.ContainsKey("launchExecutable") ? payload["launchExecutable"] : String.Empty));
                         else if (action == "open-install-folder") OpenPackageFolder(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
                         else if (action == "uninstall-package") UninstallPackageAsync(Convert.ToString(payload.ContainsKey("installId") ? payload["installId"] : String.Empty));
                         else if (action == "check-updates") await CheckForUpdatesAsync();
@@ -528,22 +529,30 @@ try {
             browser.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('orbit-install-status',{detail:" + detail + "}));");
         }
 
-        private string GetNightwellBypassInstallPath(string installId)
+        private string GetPackageInstallPath(string installId, string launchExecutable = null)
         {
-            if (!String.Equals(installId, "NightwellBypass", StringComparison.Ordinal)) return null;
-            using (RegistryKey key = Registry.CurrentUser.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\NightwellBypass", false))
+            if (String.IsNullOrWhiteSpace(installId) || installId.Length > 64) return null;
+            foreach (char c in installId) if (!(Char.IsLetterOrDigit(c) || c == '_' || c == '-' || c == '.')) return null;
+            string keyPath = "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\" + installId;
+            using (RegistryKey key = Registry.CurrentUser.OpenSubKey(keyPath, false) ?? Registry.LocalMachine.OpenSubKey(keyPath, false))
             {
                 if (key == null) return null;
                 string path = key.GetValue("InstallLocation") as string;
-                if (String.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path)) return null;
-                string executable = Path.Combine(path, "NightwellBypass.exe");
-                return File.Exists(executable) ? path : null;
+                if (String.IsNullOrWhiteSpace(path) || !Path.IsPathRooted(path) || !Directory.Exists(path)) return null;
+                if (String.IsNullOrWhiteSpace(launchExecutable)) return path;
+                if (Path.IsPathRooted(launchExecutable) || launchExecutable.IndexOf(':') >= 0) return null;
+                string executable = Path.GetFullPath(Path.Combine(path, launchExecutable));
+                string pathPrefix = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+                return executable.StartsWith(pathPrefix, StringComparison.OrdinalIgnoreCase) && File.Exists(executable) ? path : null;
             }
         }
 
-        private void PostPackageState(string installId)
+        private string GetNightwellBypassInstallPath(string installId) =>
+            String.Equals(installId, "NightwellBypass", StringComparison.Ordinal) ? GetPackageInstallPath(installId, "NightwellBypass.exe") : null;
+
+        private void PostPackageState(string installId, string launchExecutable = null)
         {
-            string installPath = GetNightwellBypassInstallPath(installId);
+            string installPath = GetPackageInstallPath(installId, launchExecutable);
             if (!browserReady || browser.CoreWebView2 == null || IsDisposed) return;
             Dictionary<string, object> state = new Dictionary<string, object>();
             state["installId"] = installId ?? String.Empty;
@@ -553,9 +562,25 @@ try {
             browser.CoreWebView2.ExecuteScriptAsync("window.dispatchEvent(new CustomEvent('orbit-package-state',{detail:" + detail + "}));");
         }
 
+        private void LaunchPackage(string installId, string launchExecutable)
+        {
+            string installPath = GetPackageInstallPath(installId, launchExecutable);
+            if (installPath == null) { PostInstallerStatus("Не удалось найти приложение. Проверьте .install.json: нужны installId и launchExecutable."); PostPackageState(installId, launchExecutable); return; }
+            try
+            {
+                Process.Start(new ProcessStartInfo(Path.Combine(installPath, launchExecutable))
+                {
+                    UseShellExecute = true,
+                    WorkingDirectory = installPath
+                });
+                PostInstallerStatus("Запускаем приложение…");
+            }
+            catch (Exception ex) { PostInstallerStatus("Не удалось запустить приложение: " + GetExceptionDetails(ex)); }
+        }
+
         private void OpenPackageFolder(string installId)
         {
-            string installPath = GetNightwellBypassInstallPath(installId);
+            string installPath = GetPackageInstallPath(installId);
             if (installPath == null) { PostInstallerStatus("Папка установки не найдена. Возможно, приложение уже удалено."); PostPackageState(installId); return; }
             try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + installPath + "\"") { UseShellExecute = true }); }
             catch (Exception ex) { PostInstallerStatus("Не удалось открыть папку установки: " + GetExceptionDetails(ex)); }
@@ -565,32 +590,35 @@ try {
         {
             try
             {
+                if (!String.Equals(installId, "NightwellBypass", StringComparison.Ordinal))
+                { PostInstallerStatus("Удаление через Orbit настроено только для NWLL Bypass."); return; }
                 string installPath = GetNightwellBypassInstallPath(installId);
                 if (installPath == null) { PostInstallerStatus("Установленное приложение не найдено."); PostPackageState(installId); return; }
-                if (Process.GetProcessesByName("NightwellBypass").Length > 0)
+                string uninstaller = Path.Combine(installPath, "NightwellBypass-Uninstaller.exe");
+                ProcessStartInfo startInfo;
+                if (File.Exists(uninstaller)) startInfo = new ProcessStartInfo(uninstaller) { UseShellExecute = true, WorkingDirectory = installPath };
+                else
                 {
-                    PostInstallerStatus("Сначала полностью закройте NWLL Bypass через его значок в системном трее, затем повторите удаление.");
-                    return;
+                    string script = Path.Combine(installPath, "uninstall.ps1");
+                    if (!File.Exists(script)) throw new FileNotFoundException("Не найден штатный деинсталлятор приложения.", script);
+                    startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"")
+                    { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
                 }
-                string script = Path.Combine(installPath, "uninstall.ps1");
-                if (!File.Exists(script)) throw new FileNotFoundException("Не найден штатный деинсталлятор приложения.", script);
-                ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"");
-                startInfo.UseShellExecute = false;
-                startInfo.CreateNoWindow = true;
-                startInfo.WindowStyle = ProcessWindowStyle.Hidden;
                 using (Process process = Process.Start(startInfo))
                 {
                     if (process == null) throw new InvalidOperationException("Не удалось запустить деинсталлятор.");
                     int exitCode = await Task.Run(delegate { process.WaitForExit(); return process.ExitCode; });
                     if (exitCode != 0)
                     {
-                        PostPackageState(installId);
-                        PostInstallerStatus("Удаление не выполнено. Закройте NWLL Bypass через значок в системном трее и попробуйте снова.");
+                        PostPackageState(installId, "NightwellBypass.exe");
+                        PostInstallerStatus("Не удалось запустить деинсталлятор. Попробуйте ещё раз.");
                         return;
                     }
                 }
-                PostPackageState(installId);
-                PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление отменено. Если вы подтвердили удаление, закройте NWLL Bypass и повторите попытку.");
+                for (int attempt = 0; attempt < 60 && GetNightwellBypassInstallPath(installId) != null; attempt++)
+                    await Task.Delay(500);
+                PostPackageState(installId, "NightwellBypass.exe");
+                PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление не завершено. Проверьте сообщение деинсталлятора.");
             }
             catch (Exception ex) { PostInstallerStatus("Не удалось удалить приложение: " + GetExceptionDetails(ex)); }
         }
