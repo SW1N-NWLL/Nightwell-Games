@@ -13,3 +13,13 @@
 .auth-mode-switch:hover { color: #d5c8ff; }
 .auth-form-error { color: #ff9f9f; background: #3b2027; border: 1px solid #65333d; border-radius: 7px; padding: 9px 10px; font-size: 10px; line-height: 1.45; }
 .auth-modal { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.status.is-installed { color: #bcb0e3; }
+.status.is-installed:before { background: #a78aff; }
+.library-menu { position: relative; flex: 0 0 auto; }
+.library-menu > summary { list-style: none; cursor: pointer; width: 34px; height: 32px; display: grid; place-items: center; border: 1px solid #393741; border-radius: 7px; color: #cfcbd7; background: #202027; font-size: 19px; line-height: 1; }
+.library-menu > summary::-webkit-details-marker { display: none; }
+.library-menu[open] > summary, .library-menu > summary:hover { border-color: #9676e8; color: #d3c4ff; }
+.library-menu-items { position: absolute; z-index: 25; right: 0; top: calc(100% + 6px); width: 205px; display: grid; padding: 5px; background: #1b1b21; border: 1px solid #393741; border-radius: 9px; box-shadow: 0 12px 30px #0009; }
+.library-menu-items button { text-align: left; border: 0; background: transparent; color: #dedbe5; padding: 9px 10px; border-radius: 6px; font-size: 11px; cursor: pointer; }
+.library-menu-items button:hover { background: #2a2832; }
+.library-menu-items .danger-action { color: #f09a9a; }

@@ -57,6 +57,11 @@ if (DATABASE_CONFIGURED) {
       password_hash VARCHAR(128) NOT NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await dbPool.execute(`CREATE TABLE IF NOT EXISTS orbit_libraries (
+      user_id VARCHAR(128) PRIMARY KEY,
+      app_ids TEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
   })().catch(error => {
     dbInitializationError = error;
     console.error("Could not initialize account database:", error.message);
@@ -161,6 +166,7 @@ async function getInstallerCatalog() {
       downloadUrl: `/installers/${encodeURIComponent(entry.name)}`,
       sha256: fileHash,
       silentArgs,
+      installId: typeof settings.installId === "string" ? settings.installId.slice(0, 64) : "",
       silentReady: extension === "msi" || Boolean(silentArgs),
     };
   }));
@@ -293,6 +299,33 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/me") {
     const user = verify(cookieMap(req).orbit_session);
     return send(res, 200, JSON.stringify({ user }), { "Content-Type": "application/json; charset=utf-8" });
+  }
+  if (url.pathname === "/api/library" && (req.method === "GET" || req.method === "PUT")) {
+    const user = verify(cookieMap(req).orbit_session);
+    if (!user) return json(res, 401, { error: "Войдите в аккаунт, чтобы синхронизировать библиотеку." });
+    if (!DATABASE_CONFIGURED) return json(res, 503, { error: "Синхронизация требует подключённую базу данных." });
+    if (req.method === "PUT" && !sameOrigin(req, secure)) return json(res, 403, { error: "Запрос синхронизации отклонён." });
+    try {
+      await dbReady;
+      if (dbInitializationError) throw dbInitializationError;
+      if (req.method === "GET") {
+        const [rows] = await dbPool.execute("SELECT app_ids FROM orbit_libraries WHERE user_id = ? LIMIT 1", [String(user.id).slice(0, 128)]);
+        if (!rows.length) return json(res, 200, { exists: false, appIds: [] });
+        let appIds = [];
+        try { appIds = JSON.parse(rows[0].app_ids); } catch {}
+        if (!Array.isArray(appIds)) appIds = [];
+        return json(res, 200, { exists: true, appIds: appIds.filter(id => typeof id === "string").slice(0, 200) });
+      }
+      const body = await readJson(req);
+      if (!Array.isArray(body.appIds) || body.appIds.length > 200 || body.appIds.some(id => typeof id !== "string" || id.length > 100))
+        return json(res, 400, { error: "Некорректный список приложений." });
+      const appIds = Array.from(new Set(body.appIds));
+      await dbPool.execute("INSERT INTO orbit_libraries (user_id, app_ids) VALUES (?, ?) ON DUPLICATE KEY UPDATE app_ids = VALUES(app_ids)", [String(user.id).slice(0, 128), JSON.stringify(appIds)]);
+      return json(res, 200, { ok: true, appIds });
+    } catch (error) {
+      console.error("Could not sync library:", error.message);
+      return json(res, 503, { error: "Не удалось синхронизировать библиотеку." });
+    }
   }
   if (url.pathname === "/api/installers" && req.method === "GET") {
     try { return json(res, 200, await getInstallerCatalog()); }

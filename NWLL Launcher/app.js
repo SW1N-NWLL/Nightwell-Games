@@ -59,13 +59,53 @@ if (!navigator.onLine) showOfflineScreen();
 checkConnection();
 if (!connectionLost) networkMonitor = setInterval(checkConnection, 15000);
 
-function saveLibrary() { localStorage.setItem("orbit-library", JSON.stringify(library)); document.querySelector("#library-count").textContent = library.length; }
+let librarySyncInProgress = false;
+function saveLibrary() {
+  localStorage.setItem("orbit-library", JSON.stringify(library));
+  document.querySelector("#library-count").textContent = library.length;
+  if (user) fetch("/api/library", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appIds: library }) }).catch(() => {});
+}
+async function syncLibraryFromAccount() {
+  if (!user || librarySyncInProgress) return;
+  librarySyncInProgress = true;
+  try {
+    const response = await fetch("/api/library", { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return;
+    const remote = await response.json();
+    if (remote.exists) {
+      library = Array.isArray(remote.appIds) ? remote.appIds : [];
+      localStorage.setItem("orbit-library", JSON.stringify(library));
+      document.querySelector("#library-count").textContent = library.length;
+      page === "store" ? renderStore() : renderLibrary();
+    } else {
+      await fetch("/api/library", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ appIds: library }) });
+    }
+  } catch {} finally { librarySyncInProgress = false; }
+}
+window.addEventListener("storage", event => {
+  if (event.key !== "orbit-library" || !event.newValue) return;
+  try { library = JSON.parse(event.newValue); document.querySelector("#library-count").textContent = library.length; page === "store" ? renderStore() : renderLibrary(); } catch {}
+});
 function icon(app) { return `<span class="app-icon ${app.iconClass}">${app.icon}</span>`; }
 function showToast(message) { const el = document.querySelector("#toast"); el.textContent = message; el.classList.add("show"); clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove("show"), 2600); }
 window.addEventListener("orbit-install-status", event => showToast(String(event.detail || "Установка обновлена")));
+window.addEventListener("orbit-package-state", event => {
+  const state = event.detail || {};
+  const app = APPS.find(item => item.installId && item.installId === state.installId);
+  if (!app) return;
+  app.installed = Boolean(state.installed);
+  app.installPath = typeof state.installPath === "string" ? state.installPath : "";
+  page === "store" ? renderStore() : renderLibrary();
+});
 const downloadsEmpty = document.querySelector("#downloads-empty");
 const downloadsList = document.querySelector("#downloads-list");
 let launcherUpdate = null;
+const runningInOrbitApp = Boolean(window.chrome?.webview);
+if (!runningInOrbitApp) {
+  downloadsEmpty.hidden = true;
+  downloadsList.hidden = false;
+  downloadsList.innerHTML = `<article class="download-item" id="launcher-download-item"><div class="download-item-head"><div><strong>Orbit Launcher для Windows</strong><p>Установщик версии 1.0.12</p></div><span class="download-item-state download-item-current">EXE</span></div><a class="download-item-action" href="/OrbitLauncherSetup.exe" download="OrbitLauncherSetup.exe">Скачать лаунчер</a></article>`;
+}
 function renderLauncherUpdate(item) {
   launcherUpdate = item;
   downloadsEmpty.hidden = true;
@@ -98,7 +138,7 @@ function renderLauncherUpdate(item) {
   document.querySelector("#downloads-badge").hidden = item.state !== "available";
 }
 window.addEventListener("orbit-update-status", event => renderLauncherUpdate(event.detail || {}));
-function appCard(app, compact = false) { const owned = library.includes(app.id); const action = app.installer ? (owned ? "install-package" : "install") : owned ? "launch" : "install"; const label = owned ? (app.installer ? "Установить" : "Открыть ↗") : "Добавить +"; return `<article class="app-card ${app.installer ? "installer-card" : ""}"><div class="app-card-top">${icon(app)}<span class="rating">${app.installer ? app.extension.toUpperCase() : `★ ${app.rating}`}</span></div><h3>${escapeHtml(app.name)}</h3><p>${escapeHtml(app.description)}</p><div class="app-card-bottom"><span class="app-category">${escapeHtml(app.category)}</span><button class="small-action ${owned ? "installed" : ""}" data-action="${action}" data-id="${app.id}" ${app.installer && owned && !app.silentReady ? "disabled title=\"Для установки настройте тихие параметры в .install.json\"" : ""}>${app.installer && owned && !app.silentReady ? "Не настроено" : label}</button></div></article>`; }
+function appCard(app, compact = false) { const owned = library.includes(app.id); const action = app.installer ? (owned ? "install-package" : "install") : owned ? "launch" : "install"; const label = owned ? (app.installer ? "Установить" : "Открыть ↗") : "Добавить +"; const installed = Boolean(app.installer && app.installed); return `<article class="app-card ${app.installer ? "installer-card" : ""}"><div class="app-card-top">${icon(app)}<span class="rating">${app.installer ? app.extension.toUpperCase() : `★ ${app.rating}`}</span></div><h3>${escapeHtml(app.name)}</h3><p>${escapeHtml(app.description)}</p><div class="app-card-bottom"><span class="app-category">${installed ? "Установлено" : escapeHtml(app.category)}</span>${!installed ? `<button class="small-action ${owned ? "installed" : ""}" data-action="${action}" data-id="${app.id}" ${app.installer && owned && !app.silentReady ? "disabled title=\"Для установки настройте тихие параметры в .install.json\"" : ""}>${app.installer && owned && !app.silentReady ? "Не настроено" : label}</button>` : ""}</div></article>`; }
 function featureCard(app, big, label) { return `<article class="feature-card ${big ? "large" : ""}"><div class="feature-bg">${app.icon}</div><div class="feature-label">${label}</div><h3>${app.name}</h3><p>${app.description}</p><div class="feature-bottom"><div class="feature-mini">${icon(app)}<div><strong>${app.name}</strong><span>★ ${app.rating} · ${app.category}</span></div></div><button class="small-action ${library.includes(app.id) ? "installed" : ""}" data-action="${library.includes(app.id) ? "launch" : "install"}" data-id="${app.id}">${library.includes(app.id) ? "Открыть ↗" : "Добавить +"}</button></div></article>`; }
 function renderStore() {
   const list = APPS.filter(a => (category === "Все приложения" || a.category === category) && (a.name + a.description + a.category).toLowerCase().includes(query.toLowerCase()));
@@ -111,7 +151,7 @@ function renderStore() {
 function renderLibrary() {
   const apps = APPS.filter(a => library.includes(a.id));
   document.querySelector("#breadcrumb-current").textContent = "Библиотека";
-  content.innerHTML = `<div class="page-heading"><div><h1>Моя библиотека</h1><p>Ваша коллекция приложений в одном месте.</p></div><button class="primary-button" data-page="store">＋ Найти приложения</button></div><div class="library-banner"><div><strong>${apps.length} ${plural(apps.length, "приложение", "приложения", "приложений")} в вашей библиотеке</strong><p>Добавляйте приложения из магазина, чтобы они всегда были под рукой.</p></div><span class="eyebrow">✦ ORBIT SPACE</span></div>${apps.length ? `<div class="library-list">${apps.map(a => `<article class="library-row">${icon(a)}<div class="library-info"><strong>${escapeHtml(a.name)}</strong><p>${escapeHtml(a.category)} · ${escapeHtml(a.size)}</p></div><span class="status">Добавлено</span><div class="row-actions">${a.installer ? `<button class="small-action" data-action="install-package" data-id="${a.id}" ${!a.silentReady ? "disabled title=\"Для установки настройте тихие параметры в .install.json\"" : ""}>${a.silentReady ? "Установить" : "Не настроено"}</button>` : `<button class="small-action" data-action="launch" data-id="${a.id}">Открыть ↗</button>`}<button class="small-action" data-action="remove" data-id="${a.id}">Убрать</button></div></article>`).join("")}</div>` : `<div class="empty-state"><strong>Библиотека пока пуста</strong>Загляните в магазин и добавьте первое приложение.</div>`}`;
+  content.innerHTML = `<div class="page-heading"><div><h1>Моя библиотека</h1><p>Ваша коллекция приложений в одном месте.</p></div><button class="primary-button" data-page="store">＋ Найти приложения</button></div><div class="library-banner"><div><strong>${apps.length} ${plural(apps.length, "приложение", "приложения", "приложений")} в вашей библиотеке</strong><p>Добавляйте приложения из магазина, чтобы они всегда были под рукой.</p></div><span class="eyebrow">✦ ORBIT SPACE</span></div>${apps.length ? `<div class="library-list">${apps.map(a => `<article class="library-row">${icon(a)}<div class="library-info"><strong>${escapeHtml(a.name)}</strong><p>${escapeHtml(a.category)} · ${escapeHtml(a.size)}</p></div><span class="status ${a.installed ? "is-installed" : ""}">${a.installed ? "Установлено" : "Добавлено"}</span><div class="row-actions">${a.installer ? (!a.installed ? `<button class="small-action" data-action="install-package" data-id="${a.id}" ${!a.silentReady ? "disabled title=\"Для установки настройте тихие параметры в .install.json\"" : ""}>${a.silentReady ? "Установить" : "Не настроено"}</button>` : "") : `<button class="small-action" data-action="launch" data-id="${a.id}">Открыть ↗</button>`}${a.installer && a.installId && runningInOrbitApp ? `<details class="library-menu"><summary aria-label="Действия с приложением">⋯</summary><div class="library-menu-items"><button type="button" data-action="open-install-folder" data-id="${a.id}">Перейти в папку установки</button><button type="button" class="danger-action" data-action="uninstall-package" data-id="${a.id}">Удалить с устройства</button></div></details>` : a.installer ? "" : `<button class="small-action" data-action="remove" data-id="${a.id}">Убрать</button>`}</div></article>`).join("")}</div>` : `<div class="empty-state"><strong>Библиотека пока пуста</strong>Загляните в магазин и добавьте первое приложение.</div>`}`;
   bindContent();
 }
 function plural(n, one, few, many) { const x = n % 100; if (x >= 11 && x <= 14) return many; const y = n % 10; return y === 1 ? one : y >= 2 && y <= 4 ? few : many; }
@@ -121,7 +161,7 @@ function bindContent() {
   content.querySelectorAll("[data-page]").forEach(b => b.addEventListener("click", () => setPage(b.dataset.page)));
   content.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => { category = b.dataset.filter; renderStore(); }));
   content.querySelectorAll("[data-scroll]").forEach(b => b.addEventListener("click", () => document.querySelector("#catalog")?.scrollIntoView({behavior:"smooth"})));
-  content.querySelectorAll("[data-action]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.id, app = APPS.find(a => a.id === id); if (!app) return; if (b.dataset.action === "install-package") { const bridge = window.chrome?.webview; if (bridge) { bridge.postMessage(JSON.stringify({ type: "install-package", url: app.downloadUrl, sha256: app.sha256, extension: app.extension, silentArgs: app.silentArgs || "" })); showToast(`Тихая установка ${app.name} запущена`); } else { const link = document.createElement("a"); link.href = app.downloadUrl; link.download = ""; link.click(); showToast("Установщик скачан. Откройте его для установки."); } } else if (b.dataset.action === "install") { if (!library.includes(id)) library.push(id); saveLibrary(); showToast(`${app.name} добавлено в библиотеку`); } else if (b.dataset.action === "remove") { library = library.filter(x => x !== id); saveLibrary(); showToast(`${app.name} удалено из библиотеки`); } else { window.open(app.url, "_blank", "noopener,noreferrer"); } if (b.dataset.action !== "install-package") page === "store" ? renderStore() : renderLibrary(); }));
+  content.querySelectorAll("[data-action]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.id, app = APPS.find(a => a.id === id); if (!app) return; const bridge = window.chrome?.webview; if (b.dataset.action === "install-package") { if (bridge) { bridge.postMessage(JSON.stringify({ type: "install-package", url: app.downloadUrl, sha256: app.sha256, extension: app.extension, silentArgs: app.silentArgs || "", installId: app.installId || "" })); showToast(`Тихая установка ${app.name} запущена`); } else { const link = document.createElement("a"); link.href = app.downloadUrl; link.download = ""; link.click(); showToast("Установщик скачан. Откройте его для установки."); } } else if (b.dataset.action === "open-install-folder" || b.dataset.action === "uninstall-package") { if (!bridge) showToast("Управление установленным приложением доступно в Orbit Launcher."); else { bridge.postMessage(JSON.stringify({ type: b.dataset.action, installId: app.installId })); b.closest("details")?.removeAttribute("open"); } } else if (b.dataset.action === "install") { if (!library.includes(id)) library.push(id); saveLibrary(); showToast(`${app.name} добавлено в библиотеку`); } else if (b.dataset.action === "remove") { library = library.filter(x => x !== id); saveLibrary(); showToast(`${app.name} удалено из библиотеки`); } else { window.open(app.url, "_blank", "noopener,noreferrer"); } if (b.dataset.action !== "install-package" && b.dataset.action !== "open-install-folder" && b.dataset.action !== "uninstall-package") page === "store" ? renderStore() : renderLibrary(); }));
   const search = content.querySelector("#search-input"); if (search) search.addEventListener("input", e => { query = e.target.value; const pos = e.target.selectionStart; renderStore(); const next = content.querySelector("#search-input"); next.focus(); next.setSelectionRange(pos, pos); });
 }
 function openAuth() { document.querySelector("#auth-title").textContent = user ? "Вы вошли в Orbit" : "Ваше пространство"; document.querySelector(".auth-copy").textContent = user ? `Аккаунт: ${user.email || user.name}` : "Создайте Orbit-аккаунт по email или войдите удобным способом."; document.querySelector("#social-login-options").hidden = Boolean(user); document.querySelector("#email-auth").hidden = Boolean(user); document.querySelector("#auth-note").textContent = user ? "Вход выполнен" : "Для аккаунта Orbit пароль должен содержать не менее 10 символов."; document.querySelector("#logout-button").hidden = !user; modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
@@ -167,6 +207,7 @@ document.querySelector("#email-auth").addEventListener("submit", async event => 
     user = result.user;
     document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт";
     document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase();
+    syncLibraryFromAccount();
     form.reset();
     openAuth();
   } catch (err) {
@@ -177,13 +218,17 @@ document.querySelector("#email-auth").addEventListener("submit", async event => 
     button.textContent = authMode === "register" ? "Создать аккаунт" : "Войти";
   }
 });
-fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); } if (modal.classList.contains("open")) openAuth(); }).catch(() => {});
+fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); syncLibraryFromAccount(); } if (modal.classList.contains("open")) openAuth(); }).catch(() => {});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncLibraryFromAccount(); });
+setInterval(syncLibraryFromAccount, 30000);
 async function loadInstallers() {
   try {
     const response = await fetch("/api/installers", { cache: "no-store" });
     if (!response.ok) return;
     const packages = await response.json();
     for (const item of packages) APPS.push({ ...item, installer: true, icon: "↓", iconClass: "icon-installer", rating: "", size: item.extension.toUpperCase() });
+    const bridge = window.chrome?.webview;
+    if (bridge) for (const item of packages) if (item.installId) bridge.postMessage(JSON.stringify({ type: "get-package-state", installId: item.installId }));
     renderStore();
   } catch {}
 }
