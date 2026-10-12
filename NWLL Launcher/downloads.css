@@ -1,9 +1,11 @@
 .downloads-trigger {
-  position: relative;
+  position: fixed;
   z-index: 32;
-  flex: 0 0 38px;
-  width: 38px;
-  height: 38px;
+  right: 32px;
+  bottom: 26px;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
   display: grid;
   place-items: center;
   padding: 0;
@@ -39,7 +41,8 @@
   position: fixed;
   z-index: 24;
   right: 24px;
-  top: 68px;
+  top: auto;
+  bottom: 88px;
   width: min(340px, calc(100vw - 32px));
   padding: 17px;
   border: 1px solid #ffffff24;
@@ -82,8 +85,8 @@
 .download-item-action:hover { background: #9b7aff3b; }
 .download-item-action:disabled { opacity: .55; cursor: wait; }
 @media (max-width: 700px) {
-  .downloads-trigger { flex-basis: 36px; width: 36px; height: 36px; border-radius: 11px; }
-  .downloads-panel { right: 12px; top: 58px; }
+  .downloads-trigger { right: 18px; bottom: max(18px, env(safe-area-inset-bottom)); flex-basis: 46px; width: 46px; height: 46px; border-radius: 14px; }
+  .downloads-panel { right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .downloads-trigger, .downloads-panel { transition: none; }
@@ -93,7 +96,6 @@
 .top-actions { gap: 11px; }
 .top-actions .profile-button { order: 0; margin-right: 7px; }
 .top-actions .notification-button { order: 1; width: 34px; height: 38px; }
-.top-actions .downloads-trigger { order: 2; }
 .app-icon.icon-installer { color: #c7b2ff; background: linear-gradient(145deg, #35294e, #211d30); }
 .app-card.installer-card { border-color: #393247; }
 .installer-card .small-action:disabled { opacity: .55; cursor: not-allowed; border-color: #393741; }

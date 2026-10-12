@@ -17,7 +17,6 @@
     <div class="app-shell">
       <aside class="sidebar">
         <a class="brand" href="#store" aria-label="Orbit — главная"><span class="brand-mark">◉</span><span>orbit<span class="brand-dot">.</span></span></a>
-        <div class="side-label">ПЛАТФОРМА</div>
         <nav class="side-nav" aria-label="Основная навигация">
           <button class="nav-item active" data-page="store"><span class="nav-icon">⌂</span>Магазин</button>
           <button class="nav-item" data-page="library"><span class="nav-icon">▤</span>Библиотека <span class="nav-count" id="library-count">3</span></button>
@@ -36,7 +35,7 @@
       <main class="main-area">
         <header class="topbar">
           <div class="breadcrumbs"><span>Пространство</span><span class="crumb-sep">/</span><strong id="breadcrumb-current">Магазин</strong></div>
-          <div class="top-actions"><button class="icon-button" aria-label="Уведомления">♧<i></i></button><button class="profile-button" id="profile-button"><span class="avatar" id="avatar">М</span><span class="profile-name" id="profile-name">Мой аккаунт</span><span class="chevron">⌄</span></button></div>
+          <div class="top-actions"><button class="profile-button" id="profile-button"><span class="avatar" id="avatar">М</span><span class="profile-name" id="profile-name">Мой аккаунт</span><span class="chevron">⌄</span></button><button class="icon-button notification-button" aria-label="Уведомления">♧<i></i></button></div>
         </header>
         <div class="content" id="content"></div>
       </main>
@@ -52,13 +51,10 @@
         <div class="offline-progress" aria-hidden="true"><span></span></div>
       </div>
     </section>
-    <button class="downloads-trigger" id="downloads-trigger" type="button" aria-label="Управление загрузками" title="Управление загрузками" aria-controls="downloads-panel" aria-expanded="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4" /></svg>
-      <span class="downloads-badge" id="downloads-badge" hidden></span>
-    </button>
+    <button class="downloads-trigger" id="downloads-trigger" type="button" aria-label="Управление загрузками" title="Управление загрузками" aria-controls="downloads-panel" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4" /></svg><span class="downloads-badge" id="downloads-badge" hidden></span></button>
     <section class="downloads-panel" id="downloads-panel" aria-label="Загрузки" aria-hidden="true">
       <header class="downloads-panel-head"><h2>Загрузки</h2><button class="downloads-close" id="downloads-close" type="button" aria-label="Закрыть">×</button></header>
-      <div class="downloads-empty" id="downloads-empty"><span class="downloads-empty-icon">↓</span><strong>Загрузок пока нет</strong><p>Здесь появятся файлы, скачанные через Orbit.</p></div>
+      <div class="downloads-empty" id="downloads-empty"><span class="downloads-empty-icon">↓</span><strong>Загрузок пока нет</strong><p>Здесь появятся загрузки и обновления Orbit Launcher.</p></div>
       <div class="downloads-list" id="downloads-list" hidden></div>
     </section>
     <div class="toast" id="toast" role="status"></div>
