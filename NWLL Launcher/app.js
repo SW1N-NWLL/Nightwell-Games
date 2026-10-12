@@ -45,6 +45,13 @@ function bindContent() {
 function openAuth() { document.querySelector("#auth-title").textContent = user ? "Вы вошли в Orbit" : "Ваше пространство"; document.querySelector(".auth-copy").textContent = user ? `Аккаунт: ${user.email || user.name}` : "Создайте Orbit-аккаунт по email или войдите удобным способом."; document.querySelector("#social-login-options").hidden = Boolean(user); document.querySelector("#email-auth").hidden = Boolean(user); document.querySelector("#auth-note").textContent = user ? "Вход выполнен" : "Для аккаунта Orbit пароль должен содержать не менее 10 символов."; document.querySelector("#logout-button").hidden = !user; modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
 function setAuthMode(mode) { authMode = mode; const registering = mode === "register"; document.querySelector("#name-field").hidden = !registering; document.querySelector("#auth-name").required = registering; document.querySelector("#auth-password").autocomplete = registering ? "new-password" : "current-password"; document.querySelector("#email-submit").textContent = registering ? "Создать аккаунт" : "Войти"; document.querySelector("#auth-mode-switch").textContent = registering ? "Уже есть аккаунт? Войти" : "Создать аккаунт"; document.querySelector("#auth-form-error").hidden = true; }
 function closeAuth() { modal.classList.remove("open"); modal.setAttribute("aria-hidden", "true"); }
+const downloadsTrigger = document.querySelector("#downloads-trigger");
+const downloadsPanel = document.querySelector("#downloads-panel");
+function setDownloadsOpen(open) {
+  downloadsPanel.classList.toggle("open", open);
+  downloadsPanel.setAttribute("aria-hidden", String(!open));
+  downloadsTrigger.setAttribute("aria-expanded", String(open));
+}
 function beginOAuth(provider) {
   if (provider === "google") { location.assign("/auth/google"); return; }
   if (provider === "discord") { location.assign("/auth/discord"); return; }
@@ -54,7 +61,10 @@ document.querySelectorAll(".category-item").forEach(b => b.addEventListener("cli
 document.querySelector("#profile-button").addEventListener("click", openAuth);
 document.querySelector("#modal-close").addEventListener("click", closeAuth);
 modal.addEventListener("click", e => { if (e.target === modal) closeAuth(); });
-document.addEventListener("keydown", e => { if (e.key === "Escape") closeAuth(); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeAuth(); setDownloadsOpen(false); } });
+downloadsTrigger.addEventListener("click", () => setDownloadsOpen(!downloadsPanel.classList.contains("open")));
+document.querySelector("#downloads-close").addEventListener("click", () => setDownloadsOpen(false));
+document.addEventListener("click", e => { if (downloadsPanel.classList.contains("open") && !downloadsPanel.contains(e.target) && !downloadsTrigger.contains(e.target)) setDownloadsOpen(false); });
 document.querySelector("#google-login").addEventListener("click", () => beginOAuth("google"));
 document.querySelector("#discord-login").addEventListener("click", () => beginOAuth("discord"));
 document.querySelector("#logout-button").addEventListener("click", () => location.assign("/auth/logout"));

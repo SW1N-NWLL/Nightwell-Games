@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="mobile.css" />
+    <link rel="stylesheet" href="downloads.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -39,6 +40,15 @@
         <div class="content" id="content"></div>
       </main>
     </div>
+    <button class="downloads-trigger" id="downloads-trigger" type="button" aria-label="Управление загрузками" title="Управление загрузками" aria-controls="downloads-panel" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4" /></svg>
+      <span class="downloads-badge" id="downloads-badge" hidden></span>
+    </button>
+    <section class="downloads-panel" id="downloads-panel" aria-label="Загрузки" aria-hidden="true">
+      <header class="downloads-panel-head"><h2>Загрузки</h2><button class="downloads-close" id="downloads-close" type="button" aria-label="Закрыть">×</button></header>
+      <div class="downloads-empty" id="downloads-empty"><span class="downloads-empty-icon">↓</span><strong>Загрузок пока нет</strong><p>Здесь появятся файлы, скачанные через Orbit.</p></div>
+      <div class="downloads-list" id="downloads-list" hidden></div>
+    </section>
     <div class="toast" id="toast" role="status"></div>
     <div class="modal-backdrop" id="auth-modal" aria-hidden="true">
       <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
