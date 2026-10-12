@@ -1,1 +1,6 @@
-
+{
+  "version": "2.0.0",
+  "downloadUrl": "ССЫЛКА_НА_EXE_В_РЕПОЗИТОРИИ",
+  "sha256": "SHA256_ФАЙЛА_EXE",
+  "releaseNotes": "NWLL Bypass 2.0.0"
+}
