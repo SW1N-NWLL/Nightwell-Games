@@ -104,7 +104,7 @@ const runningInOrbitApp = Boolean(window.chrome?.webview);
 if (!runningInOrbitApp) {
   downloadsEmpty.hidden = true;
   downloadsList.hidden = false;
-  downloadsList.innerHTML = `<article class="download-item" id="launcher-download-item"><div class="download-item-head"><div><strong>Orbit Launcher для Windows</strong><p>Установщик версии 1.0.12</p></div><span class="download-item-state download-item-current">EXE</span></div><a class="download-item-action" href="/OrbitLauncherSetup.exe" download="OrbitLauncherSetup.exe">Скачать лаунчер</a></article>`;
+  downloadsList.innerHTML = `<article class="download-item" id="launcher-download-item"><div class="download-item-head"><div><strong>Orbit Launcher для Windows</strong><p>Установщик версии 1.0.13</p></div><span class="download-item-state download-item-current">EXE</span></div><a class="download-item-action" href="/OrbitLauncherSetup.exe" download="OrbitLauncherSetup.exe">Скачать лаунчер</a></article>`;
 }
 function renderLauncherUpdate(item) {
   launcherUpdate = item;
