@@ -1,6 +1,6 @@
 {
-  "version": "1.0.11",
+  "version": "1.0.12",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "D414D4AB4B059B444AAA69E483FDB599F72E2931358FFBD6F5B17AE4094A853E",
-  "releaseNotes": "Исправлена ошибка значения TLS: поддерживаются TLS 1.2 и 1.3."
+  "sha256": "4B9415C48997284A72B0BCD9DCA56933301CAC14AAD2E0C49144C3BFCF65ED6A",
+  "releaseNotes": "Добавлено управление установленными приложениями и синхронизация библиотеки между сайтом и лаунчером."
 }
