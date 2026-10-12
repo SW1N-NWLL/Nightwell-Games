@@ -148,10 +148,8 @@ async function getInstallerCatalog() {
     const extension = path.extname(entry.name).slice(1).toLowerCase();
     const baseName = path.basename(entry.name, path.extname(entry.name));
     let settings = {};
-    if (extension === "exe") {
-      try { settings = JSON.parse(await fs.promises.readFile(fullPath + ".install.json", "utf8")); }
-      catch { settings = {}; }
-    }
+    try { settings = JSON.parse(await fs.promises.readFile(fullPath + ".install.json", "utf8")); }
+    catch { settings = {}; }
     const stat = await fs.promises.stat(fullPath);
     const fileHash = await sha256File(fullPath);
     const id = crypto.createHash("sha256").update(entry.name).digest("hex").slice(0, 16);
@@ -167,6 +165,7 @@ async function getInstallerCatalog() {
       sha256: fileHash,
       silentArgs,
       installId: typeof settings.installId === "string" ? settings.installId.slice(0, 64) : "",
+      launchExecutable: typeof settings.launchExecutable === "string" ? settings.launchExecutable.slice(0, 260) : "",
       silentReady: extension === "msi" || Boolean(silentArgs),
     };
   }));
