@@ -1,6 +1,6 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "7768BEB11ED73DAE66133EE48F42D19589D18279DAAB1B0CBCCD0A9F0DC2A599",
-  "releaseNotes": "Убрана верхняя плашка. Обновления отмечаются точкой на кнопке загрузок."
+  "sha256": "697315FC610FE32D3ECD9EF6EB5A6CF38E11434780211BCA2465C137BE88318C",
+  "releaseNotes": "Кнопка загрузок закреплена справа внизу; доступные обновления отмечаются точкой."
 }
