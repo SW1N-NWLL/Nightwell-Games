@@ -1,6 +1,6 @@
 {
-  "version": "1.0.7",
+  "version": "1.0.8",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "697315FC610FE32D3ECD9EF6EB5A6CF38E11434780211BCA2465C137BE88318C",
-  "releaseNotes": "Кнопка загрузок закреплена справа внизу; доступные обновления отмечаются точкой."
+  "sha256": "2DE82B9F3557BC46B9D560C87B082E3439E30B2D38F2E99DD8CF7F2D4195162E",
+  "releaseNotes": "Проверка автообновлений принудительно использует TLS 1.2."
 }
