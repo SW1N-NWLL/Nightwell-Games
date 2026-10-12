@@ -18,7 +18,7 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class OrbitLauncher
 {
     private const string Url = "https://launcher.nightwell.fun";
-    private const string AppVersion = "1.0.15";
+    private const string AppVersion = "1.0.17";
     private const string UpdateManifestUrl = "https://launcher.nightwell.fun/updates/latest.json";
     private const string MutexName = "Local\\OrbitLauncherDesktopApp";
     private const string PipeName = "OrbitLauncherDesktopAuth";
@@ -34,9 +34,9 @@ internal static class OrbitLauncher
     [STAThread]
     private static void Main(string[] args)
     {
-        if (args.Length == 3 && String.Equals(args[0], "--apply-update", StringComparison.Ordinal))
+        if (args.Length == 5 && String.Equals(args[0], "--apply-update", StringComparison.Ordinal))
         {
-            ApplyUpdate(args[1], args[2]);
+            ApplyUpdate(args[1], args[2], args[3], args[4]);
             return;
         }
         string callback = args.Length > 0 && args[0].StartsWith("orbitlauncher://auth", StringComparison.OrdinalIgnoreCase) ? args[0] : null;
@@ -60,13 +60,15 @@ internal static class OrbitLauncher
         }
     }
 
-    private static void ApplyUpdate(string stagedPath, string originalProcessId)
+    private static void ApplyUpdate(string stagedPath, string targetPath, string originalProcessId, string expectedVersion)
     {
-        string targetPath = Application.ExecutablePath;
         string backupPath = targetPath + ".update-backup";
         string replacementPath = targetPath + ".new";
+        string logPath = Path.Combine(Path.GetDirectoryName(stagedPath), "update.log");
         try
         {
+            Directory.CreateDirectory(Path.GetDirectoryName(logPath));
+            File.AppendAllText(logPath, "[" + DateTime.Now.ToString("O") + "] Applying " + expectedVersion + " to " + targetPath + Environment.NewLine);
             int processId;
             if (!Int32.TryParse(originalProcessId, out processId)) throw new InvalidOperationException("Не удалось определить запущенный лаунчер.");
             try
@@ -82,8 +84,12 @@ internal static class OrbitLauncher
             try
             {
                 File.Move(replacementPath, targetPath);
-                Process.Start(new ProcessStartInfo(targetPath) { UseShellExecute = true });
-                Thread.Sleep(2500);
+                // Start through the user's shell so the launcher itself does not inherit the helper's admin token.
+                Process.Start(new ProcessStartInfo("explorer.exe", "\"" + targetPath + "\"") { UseShellExecute = true });
+                Thread.Sleep(3500);
+                Version launchedVersion = Version.Parse(FileVersionInfo.GetVersionInfo(targetPath).FileVersion);
+                if (!launchedVersion.ToString(3).Equals(Version.Parse(expectedVersion).ToString(3), StringComparison.Ordinal))
+                    throw new InvalidOperationException("После замены найден файл версии " + launchedVersion + ", ожидалась " + expectedVersion + ".");
                 Process[] running = Process.GetProcessesByName(Path.GetFileNameWithoutExtension(targetPath));
                 if (running.Length == 0) throw new InvalidOperationException("Новая версия не запустилась.");
                 File.Delete(backupPath);
@@ -99,6 +105,7 @@ internal static class OrbitLauncher
         }
         catch (Exception ex)
         {
+            try { File.AppendAllText(logPath, "[" + DateTime.Now.ToString("O") + "] FAILED: " + ex + Environment.NewLine); } catch { }
             try
             {
                 if (!File.Exists(targetPath) && File.Exists(backupPath)) File.Move(backupPath, targetPath);
@@ -107,56 +114,26 @@ internal static class OrbitLauncher
             catch { }
             MessageBox.Show("Не удалось установить обновление. Текущая версия сохранена.\n\n" + ex.Message,
                 "Orbit Launcher", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            try { Process.Start(new ProcessStartInfo(targetPath) { UseShellExecute = true }); } catch { }
+            try { Process.Start(new ProcessStartInfo("explorer.exe", "\"" + targetPath + "\"") { UseShellExecute = true }); } catch { }
+        }
+        finally
+        {
+            try { File.Delete(stagedPath); } catch { }
         }
     }
 
-    private static void StartExternalUpdateApplier(string stagedPath, int originalProcessId)
+    private static void StartExternalUpdateApplier(string stagedPath, int originalProcessId, string version)
     {
         string targetPath = Application.ExecutablePath;
-        string scriptPath = Path.Combine(Path.GetDirectoryName(stagedPath), "ApplyOrbitUpdate-" + originalProcessId + ".ps1");
-        string target64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(targetPath));
-        string staged64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(stagedPath));
-        string script = @"
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Windows.Forms
-$target = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + target64 + @"'))
-$staged = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('" + staged64 + @"'))
-$oldProcessId = " + originalProcessId + @"
-$backup = $target + '.update-backup'
-$replacement = $target + '.new'
-try {
-  Wait-Process -Id $oldProcessId -Timeout 60 -ErrorAction SilentlyContinue
-  if (Get-Process -Id $oldProcessId -ErrorAction SilentlyContinue) { throw 'Лаунчер не закрылся за 60 секунд.' }
-  Copy-Item -LiteralPath $staged -Destination $replacement -Force
-  Remove-Item -LiteralPath $backup -Force -ErrorAction SilentlyContinue
-  Move-Item -LiteralPath $target -Destination $backup -Force
-  try {
-    Move-Item -LiteralPath $replacement -Destination $target -Force
-    Start-Process -FilePath $target
-    Start-Sleep -Seconds 3
-    if (-not (Get-Process -Name ([IO.Path]::GetFileNameWithoutExtension($target)) -ErrorAction SilentlyContinue)) { throw 'Новая версия лаунчера не запустилась.' }
-    Remove-Item -LiteralPath $backup -Force
-    Remove-Item -LiteralPath $staged -Force -ErrorAction SilentlyContinue
-  } catch {
-    Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $backup) { Move-Item -LiteralPath $backup -Destination $target -Force }
-    throw
-  }
-} catch {
-  if ((-not (Test-Path -LiteralPath $target)) -and (Test-Path -LiteralPath $backup)) { Move-Item -LiteralPath $backup -Destination $target -Force }
-  Remove-Item -LiteralPath $replacement -Force -ErrorAction SilentlyContinue
-  [System.Windows.Forms.MessageBox]::Show('Не удалось установить обновление. Текущая версия сохранена.' + [Environment]::NewLine + [Environment]::NewLine + $_.Exception.Message, 'Orbit Launcher', 'OK', 'Error') | Out-Null
-  if (Test-Path -LiteralPath $target) { Start-Process -FilePath $target }
-} finally {
-  Remove-Item -LiteralPath $script:MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue
-}
-";
-        File.WriteAllText(scriptPath, script, new System.Text.UTF8Encoding(false));
-        ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + scriptPath + "\"");
-        startInfo.UseShellExecute = false;
-        startInfo.CreateNoWindow = true;
-        startInfo.WindowStyle = ProcessWindowStyle.Hidden;
+        string helperDirectory = Path.Combine(Path.GetDirectoryName(stagedPath), "Apply-" + originalProcessId + "-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(helperDirectory);
+        string helperPath = Path.Combine(helperDirectory, "OrbitLauncherUpdate.exe");
+        File.Copy(stagedPath, helperPath, true);
+        ProcessStartInfo startInfo = new ProcessStartInfo(helperPath,
+            "--apply-update \"" + stagedPath + "\" \"" + targetPath + "\" " + originalProcessId + " \"" + version + "\"");
+        startInfo.UseShellExecute = true;
+        startInfo.Verb = "runas";
+        startInfo.WorkingDirectory = helperDirectory;
         if (Process.Start(startInfo) == null) throw new InvalidOperationException("Не удалось запустить службу установки обновления.");
     }
 
@@ -312,7 +289,7 @@ try {
                 File.Move(partial, staged);
                 stagedUpdatePath = staged;
                 PostUpdateStatus("installing", "Устанавливаем Orbit Launcher " + version, "Лаунчер перезапустится автоматически.", 100, version);
-                StartExternalUpdateApplier(staged, Process.GetCurrentProcess().Id);
+                StartExternalUpdateApplier(staged, Process.GetCurrentProcess().Id, version);
                 Close();
             }
             catch (Exception ex)
@@ -571,6 +548,7 @@ try {
                 Process.Start(new ProcessStartInfo(Path.Combine(installPath, launchExecutable))
                 {
                     UseShellExecute = true,
+                    Verb = "runas",
                     WorkingDirectory = installPath
                 });
                 PostInstallerStatus("Запускаем приложение…");
@@ -600,9 +578,15 @@ try {
                 else
                 {
                     string script = Path.Combine(installPath, "uninstall.ps1");
-                    if (!File.Exists(script)) throw new FileNotFoundException("Не найден штатный деинсталлятор приложения.", script);
-                    startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"")
-                    { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+                    if (File.Exists(script))
+                        startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"")
+                        { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
+                    else
+                    {
+                        PostInstallerStatus("Загружаем деинсталлятор NWLL Bypass…");
+                        uninstaller = await DownloadBypassUninstallerAsync();
+                        startInfo = new ProcessStartInfo(uninstaller) { UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(uninstaller) };
+                    }
                 }
                 using (Process process = Process.Start(startInfo))
                 {
@@ -621,6 +605,28 @@ try {
                 PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление не завершено. Проверьте сообщение деинсталлятора.");
             }
             catch (Exception ex) { PostInstallerStatus("Не удалось удалить приложение: " + GetExceptionDetails(ex)); }
+        }
+
+        private static async Task<string> DownloadBypassUninstallerAsync()
+        {
+            string directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Orbit Launcher", "Installers");
+            Directory.CreateDirectory(directory);
+            string path = Path.Combine(directory, "NightwellBypass-Uninstaller.exe");
+            string partial = path + ".download";
+            using (HttpResponseMessage response = await UpdateClient.GetAsync(Url + "/installers/NightwellBypass-Uninstaller.exe", HttpCompletionOption.ResponseHeadersRead))
+            {
+                response.EnsureSuccessStatusCode();
+                using (Stream input = await response.Content.ReadAsStreamAsync())
+                using (FileStream output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None))
+                    await input.CopyToAsync(output);
+            }
+            byte[] header = new byte[2];
+            using (FileStream file = File.OpenRead(partial))
+                if (file.Read(header, 0, header.Length) != 2 || header[0] != (byte)'M' || header[1] != (byte)'Z')
+                    throw new InvalidDataException("Сервер не вернул EXE-файл деинсталлятора. Проверьте, что NightwellBypass-Uninstaller.exe загружен в папку installers на сайте.");
+            if (File.Exists(path)) File.Delete(path);
+            File.Move(partial, path);
+            return path;
         }
 
         private async Task TryReconnectAsync()

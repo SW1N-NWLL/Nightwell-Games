@@ -41,7 +41,7 @@ internal static class OrbitLauncherInstaller
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
 
-            Label title = new Label { Left = 24, Top = 22, Width = 410, Height = 34, Text = "Установить Orbit Launcher 1.0.14", Font = new System.Drawing.Font("Segoe UI", 16, System.Drawing.FontStyle.Bold) };
+            Label title = new Label { Left = 24, Top = 22, Width = 410, Height = 34, Text = "Установить Orbit Launcher 1.0.17", Font = new System.Drawing.Font("Segoe UI", 16, System.Drawing.FontStyle.Bold) };
             Label location = new Label { Left = 26, Top = 75, Width = 410, Height = 38, Text = "Приложение будет установлено в:\n" + InstallFolder };
             desktopShortcut.SetBounds(26, 125, 400, 24);
             desktopShortcut.Text = "Создать ярлык на рабочем столе";
@@ -105,7 +105,7 @@ internal static class OrbitLauncherInstaller
             using (RegistryKey key = Registry.CurrentUser.CreateSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\OrbitLauncher"))
             {
                 key.SetValue("DisplayName", AppName);
-                key.SetValue("DisplayVersion", "1.0.14");
+                key.SetValue("DisplayVersion", "1.0.17");
                 key.SetValue("Publisher", "Orbit");
                 key.SetValue("InstallLocation", InstallFolder);
                 key.SetValue("UninstallString", "\"" + Path.Combine(InstallFolder, "OrbitLauncherUninstaller.exe") + "\"");
