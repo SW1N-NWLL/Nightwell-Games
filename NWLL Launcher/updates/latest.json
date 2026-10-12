@@ -1,6 +1,6 @@
 {
-  "version": "1.0.14",
+  "version": "1.0.15",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "59A6276CE1F121AB1BB531E8299F7293C6ACD81601B8D6A002B84B19CCAD019A",
-  "releaseNotes": "Новая версия появляется после публикации без перезапуска. Исправлена замена EXE при автообновлении."
+  "sha256": "9173779776FB1C91AC736FA780DB980E461AF72DFCE0C89BE65A1A54B2395052",
+  "releaseNotes": "Добавлена кнопка запуска установленных приложений в библиотеке."
 }
