@@ -9,7 +9,7 @@ const APPS = [
 const INITIAL_LIBRARY = ["notion", "figma", "vscode"];
 const content = document.querySelector("#content");
 const modal = document.querySelector("#auth-modal");
-let page = "store", category = "Все приложения", query = "", toastTimer;
+let page = "store", category = "Все приложения", query = "", toastTimer, authMode = "login";
 let library = JSON.parse(localStorage.getItem("orbit-library") || "null") || INITIAL_LIBRARY;
 let user = null;
 
@@ -42,7 +42,8 @@ function bindContent() {
   content.querySelectorAll("[data-action]").forEach(b => b.addEventListener("click", () => { const id = b.dataset.id, app = APPS.find(a => a.id === id); if (b.dataset.action === "install") { if (!library.includes(id)) library.push(id); saveLibrary(); showToast(`${app.name} добавлено в библиотеку`); } else if (b.dataset.action === "remove") { library = library.filter(x => x !== id); saveLibrary(); showToast(`${app.name} удалено из библиотеки`); } else { window.open(app.url, "_blank", "noopener,noreferrer"); } page === "store" ? renderStore() : renderLibrary(); }));
   const search = content.querySelector("#search-input"); if (search) search.addEventListener("input", e => { query = e.target.value; const pos = e.target.selectionStart; renderStore(); const next = content.querySelector("#search-input"); next.focus(); next.setSelectionRange(pos, pos); });
 }
-function openAuth() { document.querySelector("#auth-title").textContent = user ? "Вы вошли в Orbit" : "Ваше пространство"; document.querySelector(".auth-copy").textContent = user ? `Аккаунт: ${user.email || user.name}` : "Войдите, чтобы синхронизировать библиотеку на всех устройствах."; document.querySelectorAll(".social-button").forEach(b => b.hidden = Boolean(user)); document.querySelector("#auth-note").textContent = user ? "Вход выполнен" : "Безопасный вход через ваш аккаунт. Пароль Orbit не нужен."; document.querySelector("#logout-button").hidden = !user; modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
+function openAuth() { document.querySelector("#auth-title").textContent = user ? "Вы вошли в Orbit" : "Ваше пространство"; document.querySelector(".auth-copy").textContent = user ? `Аккаунт: ${user.email || user.name}` : "Создайте Orbit-аккаунт по email или войдите удобным способом."; document.querySelector("#social-login-options").hidden = Boolean(user); document.querySelector("#email-auth").hidden = Boolean(user); document.querySelector("#auth-note").textContent = user ? "Вход выполнен" : "Для аккаунта Orbit пароль должен содержать не менее 10 символов."; document.querySelector("#logout-button").hidden = !user; modal.classList.add("open"); modal.setAttribute("aria-hidden", "false"); }
+function setAuthMode(mode) { authMode = mode; const registering = mode === "register"; document.querySelector("#name-field").hidden = !registering; document.querySelector("#auth-name").required = registering; document.querySelector("#auth-password").autocomplete = registering ? "new-password" : "current-password"; document.querySelector("#email-submit").textContent = registering ? "Создать аккаунт" : "Войти"; document.querySelector("#auth-mode-switch").textContent = registering ? "Уже есть аккаунт? Войти" : "Создать аккаунт"; document.querySelector("#auth-form-error").hidden = true; }
 function closeAuth() { modal.classList.remove("open"); modal.setAttribute("aria-hidden", "true"); }
 function beginOAuth(provider) {
   if (provider === "google") { location.assign("/auth/google"); return; }
@@ -57,5 +58,32 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeAuth();
 document.querySelector("#google-login").addEventListener("click", () => beginOAuth("google"));
 document.querySelector("#discord-login").addEventListener("click", () => beginOAuth("discord"));
 document.querySelector("#logout-button").addEventListener("click", () => location.assign("/auth/logout"));
+document.querySelector("#auth-mode-switch").addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
+document.querySelector("#email-auth").addEventListener("submit", async event => {
+  event.preventDefault();
+  const form = event.currentTarget, button = document.querySelector("#email-submit"), error = document.querySelector("#auth-form-error");
+  error.hidden = true;
+  button.disabled = true;
+  button.textContent = authMode === "register" ? "Создаём аккаунт…" : "Входим…";
+  try {
+    const response = await fetch(authMode === "register" ? "/auth/register" : "/auth/login", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: document.querySelector("#auth-name").value, email: document.querySelector("#auth-email").value, password: document.querySelector("#auth-password").value })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Не удалось выполнить вход.");
+    user = result.user;
+    document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт";
+    document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase();
+    form.reset();
+    openAuth();
+  } catch (err) {
+    error.textContent = err.message || "Не удалось связаться с сервером.";
+    error.hidden = false;
+  } finally {
+    button.disabled = false;
+    button.textContent = authMode === "register" ? "Создать аккаунт" : "Войти";
+  }
+});
 fetch("/api/me").then(r => r.ok ? r.json() : null).then(data => { user = data?.user || null; if (user) { document.querySelector("#profile-name").textContent = user.name || user.email || "Мой аккаунт"; document.querySelector("#avatar").textContent = (user.name || user.email || "М").charAt(0).toUpperCase(); } if (modal.classList.contains("open")) openAuth(); }).catch(() => {});
 saveLibrary(); renderStore();

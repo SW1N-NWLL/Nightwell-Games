@@ -44,9 +44,20 @@
       <section class="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
         <button class="modal-close" id="modal-close" aria-label="Закрыть">×</button>
         <div class="auth-brand"><span class="brand-mark">◉</span> orbit<span class="brand-dot">.</span></div>
-        <div class="auth-orbit">✦</div><h2 id="auth-title">Ваше пространство</h2><p class="auth-copy">Войдите, чтобы синхронизировать библиотеку на всех устройствах.</p>
-        <button class="social-button google-button" id="google-login"><span class="google-g">G</span> Продолжить с Google</button>
-        <button class="social-button discord-button" id="discord-login"><span class="discord-logo">◕</span> Продолжить с Discord</button>
+        <div class="auth-orbit">✦</div><h2 id="auth-title">Ваше пространство</h2><p class="auth-copy">Создайте Orbit-аккаунт по email или войдите удобным способом.</p>
+        <div id="social-login-options">
+          <button class="social-button google-button" id="google-login"><span class="google-g">G</span> Продолжить с Google</button>
+          <button class="social-button discord-button" id="discord-login"><span class="discord-logo">◕</span> Продолжить с Discord</button>
+          <div class="auth-divider"><span>или по email</span></div>
+        </div>
+        <form class="email-auth-form" id="email-auth">
+          <label id="name-field" hidden>Имя<input id="auth-name" name="name" autocomplete="name" maxlength="60" /></label>
+          <label>Email<input id="auth-email" name="email" type="email" autocomplete="email" maxlength="254" required /></label>
+          <label>Пароль<input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="10" maxlength="128" required /></label>
+          <div class="auth-form-error" id="auth-form-error" role="alert" hidden></div>
+          <button class="social-button email-submit" id="email-submit" type="submit">Войти</button>
+          <button class="auth-mode-switch" id="auth-mode-switch" type="button">Создать аккаунт</button>
+        </form>
         <div class="auth-status-row">
           <div class="auth-note" id="auth-note">Безопасный вход через ваш аккаунт. Пароль Orbit не нужен.</div>
           <button class="logout-icon-button" id="logout-button" type="button" aria-label="Выйти из аккаунта" title="Выйти из аккаунта" hidden>
