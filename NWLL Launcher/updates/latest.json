@@ -1,6 +1,6 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.6",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "C0B2565C15CAF455939747F95C1EEF9749078D51D406A439D5427D6E8538FD3F",
-  "releaseNotes": "Добавлен каталог MSI/EXE установщиков с проверкой SHA-256 и тихой установкой."
+  "sha256": "7768BEB11ED73DAE66133EE48F42D19589D18279DAAB1B0CBCCD0A9F0DC2A599",
+  "releaseNotes": "Убрана верхняя плашка. Обновления отмечаются точкой на кнопке загрузок."
 }
