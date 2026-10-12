@@ -21,7 +21,6 @@ const DISCORD_REDIRECT_URI = process.env.DISCORD_REDIRECT_URI || `http://localho
 const SESSION_SECRET = process.env.SESSION_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_SSL = process.env.DATABASE_SSL === "true";
-const DATABASE_CA_PATH = process.env.DATABASE_CA_PATH;
 const DATABASE_CONFIGURED = Boolean(DATABASE_URL);
 const ROOT = __dirname;
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml" };
@@ -33,14 +32,15 @@ if (DATABASE_CONFIGURED) {
     const mysql = require("mysql2/promise");
     const databaseUrl = new URL(DATABASE_URL);
     if (databaseUrl.protocol !== "mysql:") throw new Error("DATABASE_URL must use the mysql:// scheme.");
-    if (DATABASE_SSL && !DATABASE_CA_PATH) throw new Error("DATABASE_CA_PATH is required when DATABASE_SSL=true.");
     dbPool = mysql.createPool({
       host: databaseUrl.hostname,
       port: Number(databaseUrl.port || 3306),
       user: decodeURIComponent(databaseUrl.username),
       password: decodeURIComponent(databaseUrl.password),
       database: decodeURIComponent(databaseUrl.pathname.slice(1)),
-      ssl: DATABASE_SSL ? { ca: fs.readFileSync(DATABASE_CA_PATH, "utf8"), rejectUnauthorized: true } : undefined,
+      // TiDB Cloud Starter presents a certificate trusted by Node's built-in CA store.
+      // Keep certificate verification enabled, but do not replace the system trust roots.
+      ssl: DATABASE_SSL ? { rejectUnauthorized: true } : undefined,
       waitForConnections: true,
       connectionLimit: 5,
       connectTimeout: 10000,
