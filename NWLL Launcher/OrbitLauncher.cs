@@ -18,7 +18,7 @@ using Microsoft.Web.WebView2.WinForms;
 internal static class OrbitLauncher
 {
     private const string Url = "https://launcher.nightwell.fun";
-    private const string AppVersion = "1.0.12";
+    private const string AppVersion = "1.0.13";
     private const string UpdateManifestUrl = "https://launcher.nightwell.fun/updates/latest.json";
     private const string MutexName = "Local\\OrbitLauncherDesktopApp";
     private const string PipeName = "OrbitLauncherDesktopAuth";
@@ -519,6 +519,11 @@ internal static class OrbitLauncher
             {
                 string installPath = GetNightwellBypassInstallPath(installId);
                 if (installPath == null) { PostInstallerStatus("Установленное приложение не найдено."); PostPackageState(installId); return; }
+                if (Process.GetProcessesByName("NightwellBypass").Length > 0)
+                {
+                    PostInstallerStatus("Сначала полностью закройте NWLL Bypass через его значок в системном трее, затем повторите удаление.");
+                    return;
+                }
                 string script = Path.Combine(installPath, "uninstall.ps1");
                 if (!File.Exists(script)) throw new FileNotFoundException("Не найден штатный деинсталлятор приложения.", script);
                 ProcessStartInfo startInfo = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -STA -File \"" + script + "\"");
@@ -528,10 +533,16 @@ internal static class OrbitLauncher
                 using (Process process = Process.Start(startInfo))
                 {
                     if (process == null) throw new InvalidOperationException("Не удалось запустить деинсталлятор.");
-                    await Task.Run(delegate { process.WaitForExit(); });
+                    int exitCode = await Task.Run(delegate { process.WaitForExit(); return process.ExitCode; });
+                    if (exitCode != 0)
+                    {
+                        PostPackageState(installId);
+                        PostInstallerStatus("Удаление не выполнено. Закройте NWLL Bypass через значок в системном трее и попробуйте снова.");
+                        return;
+                    }
                 }
                 PostPackageState(installId);
-                PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление отменено или не завершено.");
+                PostInstallerStatus(GetNightwellBypassInstallPath(installId) == null ? "Приложение удалено с устройства." : "Удаление отменено. Если вы подтвердили удаление, закройте NWLL Bypass и повторите попытку.");
             }
             catch (Exception ex) { PostInstallerStatus("Не удалось удалить приложение: " + GetExceptionDetails(ex)); }
         }
