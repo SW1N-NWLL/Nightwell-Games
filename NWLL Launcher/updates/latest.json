@@ -1,6 +1,6 @@
 {
-  "version": "1.0.10",
+  "version": "1.0.11",
   "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
-  "sha256": "C25A88BD5F06EB1312CCE85895853B62854688F43C82F32B1A9750A2724DAE65",
-  "releaseNotes": "Исправлено согласование TLS-протокола для проверки и загрузки обновлений."
+  "sha256": "D414D4AB4B059B444AAA69E483FDB599F72E2931358FFBD6F5B17AE4094A853E",
+  "releaseNotes": "Исправлена ошибка значения TLS: поддерживаются TLS 1.2 и 1.3."
 }
