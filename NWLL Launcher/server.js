@@ -23,7 +23,9 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const DATABASE_SSL = process.env.DATABASE_SSL === "true";
 const DATABASE_CONFIGURED = Boolean(DATABASE_URL);
 const ROOT = __dirname;
+const INSTALLERS_DIR = path.join(ROOT, "installers");
 const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json; charset=utf-8", ".svg": "image/svg+xml" };
+let installerCatalogCache = { expiresAt: 0, items: [] };
 let dbPool = null;
 let dbInitializationError = null;
 let dbReady = Promise.resolve();
@@ -120,6 +122,51 @@ function verify(value) { if (!value || !SESSION_SECRET) return null; const [payl
 function send(res, status, body, headers={}) { res.writeHead(status, { "Cache-Control": "no-store", ...headers }); res.end(body); }
 function redirect(res, location, headers={}) { res.writeHead(302, { Location: location, "Cache-Control": "no-store", ...headers }); res.end(); }
 function cookie(name, value, maxAge, secure, sameSite="Lax") { return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=${sameSite}; Max-Age=${maxAge}${secure ? "; Secure" : ""}`; }
+
+function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash("sha256");
+    const stream = fs.createReadStream(filePath);
+    stream.on("data", chunk => hash.update(chunk));
+    stream.on("error", reject);
+    stream.on("end", () => resolve(hash.digest("hex").toUpperCase()));
+  });
+}
+
+async function getInstallerCatalog() {
+  if (installerCatalogCache.expiresAt > Date.now()) return installerCatalogCache.items;
+  let entries;
+  try { entries = await fs.promises.readdir(INSTALLERS_DIR, { withFileTypes: true }); }
+  catch (error) { if (error.code === "ENOENT") return []; throw error; }
+  const packages = await Promise.all(entries.filter(entry => entry.isFile() && /\.(exe|msi)$/i.test(entry.name)).map(async entry => {
+    const fullPath = path.join(INSTALLERS_DIR, entry.name);
+    const extension = path.extname(entry.name).slice(1).toLowerCase();
+    const baseName = path.basename(entry.name, path.extname(entry.name));
+    let settings = {};
+    if (extension === "exe") {
+      try { settings = JSON.parse(await fs.promises.readFile(fullPath + ".install.json", "utf8")); }
+      catch { settings = {}; }
+    }
+    const stat = await fs.promises.stat(fullPath);
+    const fileHash = await sha256File(fullPath);
+    const id = crypto.createHash("sha256").update(entry.name).digest("hex").slice(0, 16);
+    const silentArgs = typeof settings.silentArgs === "string" ? settings.silentArgs.slice(0, 512) : "";
+    return {
+      id: `installer-${id}`,
+      name: String(settings.name || baseName).slice(0, 80),
+      description: String(settings.description || `Тихая установка пакета .${extension}`).slice(0, 180),
+      category: String(settings.category || "Утилиты").slice(0, 40),
+      extension,
+      size: `${Math.max(1, Math.round(stat.size / 1024 / 1024))} МБ`,
+      downloadUrl: `/installers/${encodeURIComponent(entry.name)}`,
+      sha256: fileHash,
+      silentArgs,
+      silentReady: extension === "msi" || Boolean(silentArgs),
+    };
+  }));
+  installerCatalogCache = { expiresAt: Date.now() + 10000, items: packages };
+  return packages;
+}
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
@@ -246,6 +293,10 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/me") {
     const user = verify(cookieMap(req).orbit_session);
     return send(res, 200, JSON.stringify({ user }), { "Content-Type": "application/json; charset=utf-8" });
+  }
+  if (url.pathname === "/api/installers" && req.method === "GET") {
+    try { return json(res, 200, await getInstallerCatalog()); }
+    catch (error) { console.error("Could not scan installers:", error.message); return json(res, 500, { error: "Не удалось загрузить каталог установщиков." }); }
   }
   if (url.pathname === "/auth/logout") return redirect(res, "/", { "Set-Cookie": cookie("orbit_session", "", 0, secure) });
   const requested = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
