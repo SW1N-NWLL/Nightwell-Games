@@ -2,5 +2,6 @@
   "name": "NWLL Bypass",
   "description": "NWLL Bypass, версия 2.0.0",
   "category": "Утилиты",
-  "silentArgs": "--silent"
+  "silentArgs": "--silent",
+  "installId": "NightwellBypass"
 }
