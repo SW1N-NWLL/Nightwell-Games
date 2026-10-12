@@ -149,3 +149,37 @@
   .library-banner, .library-row { border-radius: 14px; }
   .toast { bottom: calc(87px + env(safe-area-inset-bottom)); }
 }
+
+/* Liquid Glass treatment for the mobile navigation dock. */
+@media (max-width: 700px) {
+  .sidebar {
+    overflow: hidden;
+    border: 1px solid #ffffff32;
+    background: linear-gradient(145deg, #ffffff16, #28253078 38%, #111016a8 100%);
+    -webkit-backdrop-filter: blur(26px) saturate(180%);
+    backdrop-filter: blur(26px) saturate(180%);
+    box-shadow: 0 14px 40px #0009, inset 0 1px 0 #ffffff39, inset 0 -1px 0 #ffffff0a;
+  }
+  .sidebar::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 3%, #ffffff8a 30%, #ffffff30 72%, transparent 97%);
+    pointer-events: none;
+  }
+  .side-nav { position: relative; z-index: 1; }
+  .nav-item, .nav-item:not(.active), .nav-item.active {
+    border: 1px solid transparent;
+    background: transparent;
+    transition: background .2s ease, border-color .2s ease, box-shadow .2s ease, color .2s ease;
+  }
+  .nav-item.active {
+    border-color: #ffffff25;
+    background: linear-gradient(145deg, #ffffff20, #ffffff0b 72%);
+    box-shadow: inset 0 1px 0 #ffffff30, 0 3px 12px #0002;
+    color: #d4c2ff;
+  }
+  .nav-item:not(.active) { color: #e3e0e9c7; }
+  .nav-item:not(.active):active { background: #ffffff12; }
+}
