@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css" />
     <link rel="stylesheet" href="mobile.css" />
     <link rel="stylesheet" href="downloads.css" />
+    <link rel="stylesheet" href="offline.css" />
   </head>
   <body>
     <div class="app-shell">
@@ -40,6 +41,17 @@
         <div class="content" id="content"></div>
       </main>
     </div>
+    <section class="offline-screen" id="offline-screen" role="alert" aria-live="assertive" aria-hidden="true" hidden>
+      <div class="offline-card">
+        <div class="offline-icon" aria-hidden="true">
+          <svg viewBox="0 0 48 48"><path d="M7 18.5a26 26 0 0 1 34 0M13 25a17 17 0 0 1 22 0M19.5 31.5a8 8 0 0 1 9 0M24 38h.01M8 8l32 32" /></svg>
+        </div>
+        <span class="offline-brand">ORBIT</span>
+        <h1 id="offline-title">Нет подключения к интернету</h1>
+        <p id="offline-message">Проверяем соединение. Лаунчер загрузится автоматически, когда сеть восстановится.</p>
+        <div class="offline-progress" aria-hidden="true"><span></span></div>
+      </div>
+    </section>
     <button class="downloads-trigger" id="downloads-trigger" type="button" aria-label="Управление загрузками" title="Управление загрузками" aria-controls="downloads-panel" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 16v4h14v-4" /></svg>
       <span class="downloads-badge" id="downloads-badge" hidden></span>

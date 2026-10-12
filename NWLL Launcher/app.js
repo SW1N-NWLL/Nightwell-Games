@@ -12,6 +12,52 @@ const modal = document.querySelector("#auth-modal");
 let page = "store", category = "Все приложения", query = "", toastTimer, authMode = "login";
 let library = JSON.parse(localStorage.getItem("orbit-library") || "null") || INITIAL_LIBRARY;
 let user = null;
+const offlineScreen = document.querySelector("#offline-screen");
+let connectionLost = false, networkCheckInProgress = false, reconnectTimer = null, networkMonitor = null;
+
+function showOfflineScreen() {
+  const wasOffline = connectionLost;
+  connectionLost = true;
+  offlineScreen.hidden = false;
+  offlineScreen.setAttribute("aria-hidden", "false");
+  if (!wasOffline) { try { window.chrome?.webview?.postMessage("offline"); } catch {} }
+  if (networkMonitor) { clearInterval(networkMonitor); networkMonitor = null; }
+  if (!reconnectTimer) reconnectTimer = setInterval(checkConnection, 4000);
+}
+
+async function checkConnection() {
+  if (networkCheckInProgress) return;
+  if (!navigator.onLine) { showOfflineScreen(); return; }
+  networkCheckInProgress = true;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 6000);
+  try {
+    const response = await fetch(`/api/me?network-check=${Date.now()}`, {
+      cache: "no-store", credentials: "same-origin", signal: controller.signal
+    });
+    if (!response.ok) throw new Error("Network check failed");
+    if (connectionLost) {
+      document.querySelector("#offline-title").textContent = "Связь восстановлена";
+      document.querySelector("#offline-message").textContent = "Загружаем данные лаунчера…";
+      if (reconnectTimer) clearInterval(reconnectTimer);
+      reconnectTimer = null;
+      try { window.chrome?.webview?.postMessage("online"); } catch {}
+      window.location.reload();
+    }
+  } catch {
+    showOfflineScreen();
+  } finally {
+    clearTimeout(timeout);
+    networkCheckInProgress = false;
+  }
+}
+
+window.addEventListener("offline", showOfflineScreen);
+window.addEventListener("online", checkConnection);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkConnection(); });
+if (!navigator.onLine) showOfflineScreen();
+checkConnection();
+if (!connectionLost) networkMonitor = setInterval(checkConnection, 15000);
 
 function saveLibrary() { localStorage.setItem("orbit-library", JSON.stringify(library)); document.querySelector("#library-count").textContent = library.length; }
 function icon(app) { return `<span class="app-icon ${app.iconClass}">${app.icon}</span>`; }
