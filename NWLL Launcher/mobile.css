@@ -152,10 +152,19 @@
 
 /* Liquid Glass treatment for the mobile navigation dock. */
 @media (max-width: 700px) {
+  .app-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "topbar" "nav" "content";
+    align-content: start;
+  }
+  .main-area { display: contents; padding-bottom: 0; }
+  .topbar { grid-area: topbar; }
   .sidebar {
+    grid-area: nav;
     position: sticky;
     inset: auto;
-    top: env(safe-area-inset-top);
+    top: 0;
     bottom: auto;
     width: auto;
     min-width: 0;
@@ -228,7 +237,7 @@
     height: auto;
     margin: 8px 12px 0;
   }
-  .main-area { padding-bottom: 20px; }
+  .content { grid-area: content; padding-bottom: 28px; }
   .catalog-toolbar .filter-chip { display: none; }
   .content { padding-top: 16px; }
 }
