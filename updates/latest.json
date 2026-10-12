@@ -1,0 +1,6 @@
+{
+  "version": "1.0.3",
+  "downloadUrl": "https://launcher.nightwell.fun/updates/OrbitLauncher.exe",
+  "sha256": "DCF2F30129F8E34E23F92211EE45493543EB995390AB4A6EEC13014C120C071E",
+  "releaseNotes": "Добавлен полноэкранный экран отсутствия сети и автоматическое восстановление после подключения."
+}
